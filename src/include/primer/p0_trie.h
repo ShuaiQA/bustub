@@ -12,20 +12,33 @@
 
 #pragma once
 
-#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <typeinfo>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
 #include "common/exception.h"
 #include "common/logger.h"
 #include "common/rwlatch.h"
-using namespace std;
 
 namespace bustub {
+class RLock {
+  ReaderWriterLatch *latch_;
+
+ public:
+  explicit RLock(ReaderWriterLatch *latch) : latch_(latch) { latch_->RLock(); }
+  ~RLock() { latch_->RUnlock(); }
+};
+
+class WLock {
+  ReaderWriterLatch *latch_;
+
+ public:
+  explicit WLock(ReaderWriterLatch *latch) : latch_(latch) { latch_->WLock(); }
+  ~WLock() { latch_->WUnlock(); }
+};
 
 /**
  * TrieNode is a generic container for any node in Trie.
@@ -254,7 +267,7 @@ class Trie {
    * @brief Construct a new Trie object. Initialize the root node with '\0'
    * character.
    */
-  Trie() : root_(std::make_unique<TrieNode>(TrieNode('\0'))) { cout << "root is (p):" << root_.get() << endl; };
+  Trie() : root_(std::make_unique<TrieNode>('\0')) {}
 
   /**
    * TODO(P0): Add implementation
@@ -284,31 +297,31 @@ class Trie {
    */
   template <typename T>
   bool Insert(const std::string &key, T value) {
-    if (key.empty()) return false;
+    WLock w(&latch_);
+    if (key.empty()) {
+      return false;
+    }
     std::unique_ptr<TrieNode> *pre = &root_;
     decltype(key.size()) i = 0;
-    latch_.WLock();
     while (i < key.size() && (*pre)->GetChildNode(key[i]) != nullptr) {
       pre = (*pre)->GetChildNode(key[i]);
       i++;
     }
-    if (i == key.size() && (*pre)->IsEndNode()) {
-      return false;
+    if (i == key.size()) {
+      if ((*pre)->IsEndNode()) {
+        return false;
+      }
+      (*pre) = std::make_unique<TrieNodeWithValue<T>>(std::move(*pre->get()), value);
     }
-    // LOG_INFO("cur i is %d", static_cast<int>(i));
     while (i < key.size()) {
       if (i == key.size() - 1) {
-        // LOG_INFO("root the end is %d ,%p : ", static_cast<int>(i), a);
-        auto cur = std::make_unique<TrieNodeWithValue<T>>(key[i], value);
-        pre = (*pre)->InsertChildNode(key[i], std::unique_ptr<TrieNode>(cur.get()));
-        cout << "insert cur (last)node is " << (*pre).get() << endl;
+        TrieNode *last = new TrieNodeWithValue<T>(key[i], value);
+        pre = (*pre)->InsertChildNode(key[i], std::unique_ptr<TrieNode>(last));
       } else {
         pre = (*pre)->InsertChildNode(key[i], std::make_unique<TrieNode>(TrieNode(key[i])));
-        cout << "insert cur node is " << (*pre).get() << endl;
       }
       i++;
     }
-    latch_.WUnlock();
     return true;
   }
 
@@ -330,32 +343,37 @@ class Trie {
    * @return True if key exists and is removed, false otherwise
    */
   bool Remove(const std::string &key) {
-    if (key.empty()) return false;
-    std::unique_ptr<TrieNode> *pre = &root_;
-    decltype(key.size()) i = 1;
-    while (i < key.size() && pre != nullptr) {
-      pre = (*pre)->GetChildNode(i);
-      i++;
-    }
-    if (i != key.size() || pre == nullptr || (*pre)->IsEndNode()) {
+    WLock w(&latch_);
+    if (key.empty()) {
       return false;
     }
-    dfs(&root_, key);
+    std::unique_ptr<TrieNode> *pre = &root_;
+    decltype(key.size()) i = 0;
+    while (i < key.size() && (*pre)->GetChildNode(key[i]) != nullptr) {
+      pre = (*pre)->GetChildNode(key[i]);
+      i++;
+    }
+    if (i != key.size() || pre == nullptr || !(*pre)->IsEndNode()) {
+      return false;
+    }
+    Dfs(&root_, key);
     return true;
   }
-  std::unique_ptr<TrieNode> *dfs(std::unique_ptr<TrieNode> *root, const std::string &key,
+  std::unique_ptr<TrieNode> *Dfs(std::unique_ptr<TrieNode> *root, const std::string &key,
                                  decltype(key.size()) depth = 0) {
     if (depth == key.size()) {
-      if ((*root)->IsEndNode()) (*root)->SetEndNode(false);
+      if ((*root)->IsEndNode()) {
+        (*root)->SetEndNode(false);
+      }
       if (!(*root)->HasChildren()) {
         root = nullptr;
       }
       return root;
     }
-    auto cur = dfs((*root)->GetChildNode(key[depth]), key, depth + 1);
+    auto cur = Dfs((*root)->GetChildNode(key[depth]), key, depth + 1);
     if (cur == nullptr) {
-      (*root)->RemoveChildNode((*cur)->GetKeyChar());
-      if (!(*root)->HasChildren()) {
+      (*root)->RemoveChildNode(key[depth]);
+      if (!(*root)->HasChildren() && !(*root)->IsEndNode()) {
         root = nullptr;
       }
     }
@@ -382,26 +400,34 @@ class Trie {
    */
   template <typename T>
   T GetValue(const std::string &key, bool *success) {
-    latch_.RLock();
-    if (key.empty()) *success = false;
+    RLock w(&latch_);
     std::unique_ptr<TrieNode> *pre = &root_;
     decltype(key.size()) i = 0;
     while (i < key.size() && (*pre)->GetChildNode(key[i]) != nullptr) {
       pre = (*pre)->GetChildNode(key[i]);
-      cout << "get cur node is:" << (*pre).get() << endl;
       i++;
     }
     if (i == key.size() && (*pre)->IsEndNode()) {
       *success = true;
-      auto p = dynamic_cast<TrieNodeWithValue<T> *>(pre->get());
-      std::cout << "cur last p is " << p->GetValue() << endl;
-      latch_.RUnlock();
+      auto p = static_cast<TrieNodeWithValue<T> *>(pre->get());
       return p->GetValue();
-    } else {
-      latch_.RUnlock();
-      *success = false;
-      return T();
     }
+    *success = false;
+    return T();
   }
 };
 }  // namespace bustub
+/**
+ * 1.递归代码前缀树的删除操作,主要是在边界上有问题
+ *
+ * 2.在智能指针的时候类型转换比较复杂，首先是生成子指针转换成父指针放入集合中
+ * 转换成父节点先上转型
+ * 然后是从集合中取出相应的父指针转换成子指针访问子类对应的方法
+ *
+ * 3.在上锁和解锁上面还有带理解
+ *
+ * 4.在插入的情况,会出现插入一个已经存在的节点但是这个节点并不是终端节点
+ * 需要将TrieNode 转换成TrieNodeWithValue
+ *
+ * 5.在GetValue()函数上面,对于原有的类型和想要获取的类型不一致
+ */
