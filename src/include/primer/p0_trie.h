@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -20,7 +21,9 @@
 #include <vector>
 
 #include "common/exception.h"
+#include "common/logger.h"
 #include "common/rwlatch.h"
+using namespace std;
 
 namespace bustub {
 
@@ -37,7 +40,7 @@ class TrieNode {
    *
    * @param key_char Key character of this trie node
    */
-  explicit TrieNode(char key_char) : key_char_(key_char), is_end_(false) {}
+  explicit TrieNode(char key_char) : key_char_(key_char) { is_end_ = false; }
 
   /**
    * TODO(P0): Add implementation
@@ -66,12 +69,7 @@ class TrieNode {
    * @param key_char Key char of child node.
    * @return True if this trie node has a child with given key, false otherwise.
    */
-  bool HasChild(char key_char) const {
-    if (children_.find(key_char) == children_.end()) {
-      return false;
-    }
-    return true;
-  }
+  bool HasChild(char key_char) const { return children_.find(key_char) != children_.end(); }
 
   /**
    * TODO(P0): Add implementation
@@ -81,7 +79,7 @@ class TrieNode {
    *
    * @return True if this trie node has any child node, false if it has no child node.
    */
-  bool HasChildren() const { return children_.size() != 0; }
+  bool HasChildren() const { return !children_.empty(); }
 
   /**
    * TODO(P0): Add implementation
@@ -256,7 +254,7 @@ class Trie {
    * @brief Construct a new Trie object. Initialize the root node with '\0'
    * character.
    */
-  Trie() : root_(std::unique_ptr<TrieNode>(new TrieNode('\0'))){};
+  Trie() : root_(std::make_unique<TrieNode>(TrieNode('\0'))) { cout << "root is (p):" << root_.get() << endl; };
 
   /**
    * TODO(P0): Add implementation
@@ -286,26 +284,27 @@ class Trie {
    */
   template <typename T>
   bool Insert(const std::string &key, T value) {
-    if (key.size() == 0) return false;
-    bool *v = nullptr;
-    GetValue<T>(key, v);
-    if (*v == true) {
-      return false;
-    }
-    if (key.size() == 0) return true;
+    if (key.empty()) return false;
     std::unique_ptr<TrieNode> *pre = &root_;
-    decltype(key.size()) i = 1;
+    decltype(key.size()) i = 0;
     latch_.WLock();
     while (i < key.size() && (*pre)->GetChildNode(key[i]) != nullptr) {
       pre = (*pre)->GetChildNode(key[i]);
       i++;
     }
+    if (i == key.size() && (*pre)->IsEndNode()) {
+      return false;
+    }
+    // LOG_INFO("cur i is %d", static_cast<int>(i));
     while (i < key.size()) {
       if (i == key.size() - 1) {
-        TrieNode *a = new TrieNodeWithValue<T>(key[i], value);
-        pre = (*pre)->InsertChildNode(key[i], std::unique_ptr<TrieNode>(a));
+        // LOG_INFO("root the end is %d ,%p : ", static_cast<int>(i), a);
+        auto cur = std::make_unique<TrieNodeWithValue<T>>(key[i], value);
+        pre = (*pre)->InsertChildNode(key[i], std::unique_ptr<TrieNode>(cur.get()));
+        cout << "insert cur (last)node is " << (*pre).get() << endl;
       } else {
-        pre = (*pre)->InsertChildNode(key[i], std::unique_ptr<TrieNode>(new TrieNode(key[i])));
+        pre = (*pre)->InsertChildNode(key[i], std::make_unique<TrieNode>(TrieNode(key[i])));
+        cout << "insert cur node is " << (*pre).get() << endl;
       }
       i++;
     }
@@ -331,10 +330,9 @@ class Trie {
    * @return True if key exists and is removed, false otherwise
    */
   bool Remove(const std::string &key) {
-    if (key.size() == 0) return false;
+    if (key.empty()) return false;
     std::unique_ptr<TrieNode> *pre = &root_;
     decltype(key.size()) i = 1;
-    latch_.WLock();
     while (i < key.size() && pre != nullptr) {
       pre = (*pre)->GetChildNode(i);
       i++;
@@ -343,7 +341,6 @@ class Trie {
       return false;
     }
     dfs(&root_, key);
-    latch_.WUnlock();
     return true;
   }
   std::unique_ptr<TrieNode> *dfs(std::unique_ptr<TrieNode> *root, const std::string &key,
@@ -385,22 +382,26 @@ class Trie {
    */
   template <typename T>
   T GetValue(const std::string &key, bool *success) {
-    if (key.size() == 0) *success = false;
-    std::unique_ptr<TrieNode> *pre = &root_;
-    decltype(key.size()) i = 1;
     latch_.RLock();
-    while (i < key.size() && pre != nullptr) {
-      pre = (*pre)->GetChildNode(i);
+    if (key.empty()) *success = false;
+    std::unique_ptr<TrieNode> *pre = &root_;
+    decltype(key.size()) i = 0;
+    while (i < key.size() && (*pre)->GetChildNode(key[i]) != nullptr) {
+      pre = (*pre)->GetChildNode(key[i]);
+      cout << "get cur node is:" << (*pre).get() << endl;
       i++;
     }
     if (i == key.size() && (*pre)->IsEndNode()) {
       *success = true;
+      auto p = dynamic_cast<TrieNodeWithValue<T> *>(pre->get());
+      std::cout << "cur last p is " << p->GetValue() << endl;
+      latch_.RUnlock();
+      return p->GetValue();
     } else {
+      latch_.RUnlock();
       *success = false;
+      return T();
     }
-    auto p = static_cast<TrieNodeWithValue<T> *>((*pre).get());
-    latch_.RUnlock();
-    return p->GetValue();
   }
 };
 }  // namespace bustub

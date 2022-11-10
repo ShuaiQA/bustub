@@ -12,11 +12,13 @@
 
 #include <bitset>
 #include <functional>
+#include <iostream>
 #include <numeric>
 #include <random>
 #include <thread>  // NOLINT
 
 #include "common/exception.h"
+#include "common/logger.h"
 #include "gtest/gtest.h"
 #include "primer/p0_trie.h"
 
@@ -41,7 +43,7 @@ std::vector<std::string> GenerateNRandomString(int n) {
   return rand_strs;
 }
 
-TEST(StarterTest, DISABLED_TrieNodeInsertTest) {
+TEST(StarterTest, TrieNodeInsertTest) {
   // Test Insert
   //  When same key is inserted twice, insert should return nullptr
   // When inserted key and unique_ptr's key does not match, return nullptr
@@ -60,7 +62,7 @@ TEST(StarterTest, DISABLED_TrieNodeInsertTest) {
   EXPECT_EQ((*child_node)->GetKeyChar(), 'c');
 }
 
-TEST(StarterTest, DISABLED_TrieNodeRemoveTest) {
+TEST(StarterTest, TrieNodeRemoveTest) {
   auto t = TrieNode('a');
   __attribute__((unused)) auto child_node = t.InsertChildNode('b', std::make_unique<TrieNode>('b'));
   child_node = t.InsertChildNode('c', std::make_unique<TrieNode>('c'));
@@ -78,12 +80,13 @@ TEST(StarterTest, DISABLED_TrieNodeRemoveTest) {
   EXPECT_EQ(child_node, nullptr);
 }
 
-TEST(StarterTest, DISABLED_TrieInsertTest) {
+TEST(StarterTest, TrieInsertTest) {
   {
     Trie trie;
     trie.Insert<std::string>("abc", "d");
     bool success = true;
     auto val = trie.GetValue<std::string>("abc", &success);
+    std::cout << "thr val is :" << val << std::endl;
     EXPECT_EQ(success, true);
     EXPECT_EQ(val, "d");
   }
@@ -101,12 +104,16 @@ TEST(StarterTest, DISABLED_TrieInsertTest) {
   {
     Trie trie;
     bool success = trie.Insert<int>("abc", 5);
+    LOG_INFO("cur success is %d", success);
     EXPECT_EQ(success, true);
 
     success = trie.Insert<int>("abc", 6);
+    LOG_INFO("cur success is %d", success);
     EXPECT_EQ(success, false);
 
     auto val = trie.GetValue<int>("abc", &success);
+    LOG_INFO("cur success is %d", success);
+    LOG_INFO("cur val %d", val);
     EXPECT_EQ(success, true);
     EXPECT_EQ(val, 5);
   }
@@ -129,7 +136,7 @@ TEST(StarterTest, DISABLED_TrieInsertTest) {
   }
 }
 
-TEST(StarterTrieTest, DISABLED_RemoveTest) {
+TEST(StarterTrieTest, RemoveTest) {
   {
     Trie trie;
     bool success = trie.Insert<int>("a", 5);
@@ -162,7 +169,7 @@ TEST(StarterTrieTest, DISABLED_RemoveTest) {
   }
 }
 
-TEST(StarterTrieTest, DISABLED_ConcurrentTest1) {
+TEST(StarterTrieTest, ConcurrentTest1) {
   Trie trie;
   constexpr int num_words = 1000;
   constexpr int num_bits = 10;
