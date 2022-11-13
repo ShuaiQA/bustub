@@ -10,20 +10,26 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "container/hash/extendible_hash_table.h"
+#include <unistd.h>
 #include <cassert>
 #include <cstdlib>
 #include <functional>
+#include <iostream>
 #include <list>
 #include <utility>
-
-#include "container/hash/extendible_hash_table.h"
+#include "common/logger.h"
 #include "storage/page/page.h"
+
+using namespace std;
 
 namespace bustub {
 
 template <typename K, typename V>
 ExtendibleHashTable<K, V>::ExtendibleHashTable(size_t bucket_size)
-    : global_depth_(0), bucket_size_(bucket_size), num_buckets_(1) {}
+    : global_depth_(0), bucket_size_(bucket_size), num_buckets_(1) {
+  dir_ = std::vector<std::shared_ptr<Bucket>>(1, std::make_shared<Bucket>(bucket_size));
+}
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::IndexOf(const K &key) -> size_t {
@@ -66,17 +72,52 @@ auto ExtendibleHashTable<K, V>::GetNumBucketsInternal() const -> int {
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Find(const K &key, V &value) -> bool {
-  UNREACHABLE("not implemented");
+  auto index = IndexOf(key);
+  return dir_[index]->Find(key, value);
 }
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Remove(const K &key) -> bool {
-  UNREACHABLE("not implemented");
+  return dir_[IndexOf(key)]->Remove(key);
 }
 
 template <typename K, typename V>
 void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
-  UNREACHABLE("not implemented");
+  //获取当前的index，判断能不能插入对应的index(进行while判断)
+  //如果不能插入,将index的内容赋值给temp,然后将index和other进行设置为空
+  //将temp里面的内容继续调用当前的函数进行递归的插入
+  //已知当前的index如果超出大小的话,如何找到另一个other
+  //如果在vector中有4个Bucket同时指向一个地方,扩展的时候应该怎么进行扩展
+  int index = IndexOf(key);
+  while (!dir_[index]->Insert(key, value)) {            //看看能不能插入
+    auto cur = dir_[index];                             // temp 原有的key-value放到cur中
+    if (dir_[index]->GetDepth() == GetGlobalDepth()) {  // dir扩展2倍
+      global_depth_++;
+      std::vector<std::shared_ptr<Bucket>> cur(dir_.size() * 2);
+      auto min = copy(dir_.begin(), dir_.end(), cur.begin());
+      copy(dir_.begin(), dir_.end(), min);
+      dir_ = cur;
+    }
+    for (decltype(dir_.size()) a = 0; a < dir_.size(); a++) {
+      if (dir_[a] == cur) {
+        dir_[a] = std::make_shared<Bucket>(bucket_size_, cur->GetDepth() + 1);
+      }
+    }
+    auto fill_list = cur->GetItems();
+    //对当前的list进行划分
+    auto begin = fill_list.begin();
+    while (begin != fill_list.end()) {  //当前的key和value应该调用本函数
+      int cur_index = IndexOf(begin->first);
+      if (cur_index == index) {
+        Insert(begin->first, begin->second);
+      } else {
+        Insert(begin->first, begin->second);
+      }
+      begin++;
+    }
+    num_buckets_++;
+    index = IndexOf(key);
+  }
 }
 
 //===--------------------------------------------------------------------===//
@@ -87,17 +128,57 @@ ExtendibleHashTable<K, V>::Bucket::Bucket(size_t array_size, int depth) : size_(
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Bucket::Find(const K &key, V &value) -> bool {
-  UNREACHABLE("not implemented");
+  auto begin = list_.begin();
+  while (begin != list_.end()) {
+    K first = begin->first;
+    if (first == key) {
+      value = begin->second;
+      break;
+    }
+    begin++;
+  }
+  if (begin == list_.end()) {
+    return false;
+  }
+  return false;
 }
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Bucket::Remove(const K &key) -> bool {
-  UNREACHABLE("not implemented");
+  auto begin = list_.begin();
+  while (begin != list_.end()) {
+    K first = begin->first;
+    if (first == key) {
+      break;
+    }
+    begin++;
+  }
+  if (begin == list_.end()) {
+    return false;
+  }
+  list_.erase(begin);
+  return true;
 }
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Bucket::Insert(const K &key, const V &value) -> bool {
-  UNREACHABLE("not implemented");
+  if (IsFull()) {
+    return false;
+  }
+  auto begin = list_.begin();
+  while (begin != list_.end()) {
+    K first = begin->first;
+    if (first == key) {
+      break;
+    }
+    begin++;
+  }
+  if (begin == list_.end()) {
+    list_.push_back(std::pair<K, V>(key, value));
+  } else {
+    begin->second = value;
+  }
+  return true;
 }
 
 template class ExtendibleHashTable<page_id_t, Page *>;

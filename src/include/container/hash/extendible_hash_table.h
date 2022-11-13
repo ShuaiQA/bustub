@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <list>
 #include <memory>
 #include <mutex>  // NOLINT
@@ -26,7 +27,7 @@
 #include "container/hash/hash_table.h"
 
 namespace bustub {
-
+// https://www.geeksforgeeks.org/extendible-hashing-dynamic-approach-to-dbms/   设计过程
 /**
  * ExtendibleHashTable implements a hash table using the extendible hashing algorithm.
  * @tparam K key type
