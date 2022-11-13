@@ -15,13 +15,10 @@
 #include <cassert>
 #include <cstdlib>
 #include <functional>
-#include <iostream>
 #include <list>
 #include <utility>
 #include "common/logger.h"
 #include "storage/page/page.h"
-
-using namespace std;
 
 namespace bustub {
 
@@ -72,12 +69,14 @@ auto ExtendibleHashTable<K, V>::GetNumBucketsInternal() const -> int {
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Find(const K &key, V &value) -> bool {
+  Lock w(&latch_);
   auto index = IndexOf(key);
   return dir_[index]->Find(key, value);
 }
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Remove(const K &key) -> bool {
+  Lock w(&latch_);
   return dir_[IndexOf(key)]->Remove(key);
 }
 
@@ -88,8 +87,10 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
   //将temp里面的内容继续调用当前的函数进行递归的插入
   //已知当前的index如果超出大小的话,如何找到另一个other
   //如果在vector中有4个Bucket同时指向一个地方,扩展的时候应该怎么进行扩展
+  latch_.lock();
   int index = IndexOf(key);
-  while (!dir_[index]->Insert(key, value)) {            //看看能不能插入
+  while (!dir_[index]->Insert(key, value)) {  //看看能不能插入
+    latch_.unlock();
     auto cur = dir_[index];                             // temp 原有的key-value放到cur中
     if (dir_[index]->GetDepth() == GetGlobalDepth()) {  // dir扩展2倍
       global_depth_++;
@@ -117,7 +118,9 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
     }
     num_buckets_++;
     index = IndexOf(key);
+    latch_.lock();
   }
+  latch_.unlock();
 }
 
 //===--------------------------------------------------------------------===//
@@ -140,7 +143,7 @@ auto ExtendibleHashTable<K, V>::Bucket::Find(const K &key, V &value) -> bool {
   if (begin == list_.end()) {
     return false;
   }
-  return false;
+  return true;
 }
 
 template <typename K, typename V>

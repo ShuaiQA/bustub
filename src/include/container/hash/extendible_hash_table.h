@@ -33,6 +33,14 @@ namespace bustub {
  * @tparam K key type
  * @tparam V value type
  */
+class Lock {
+  mutable std::mutex *latch_;
+
+ public:
+  explicit Lock(std::mutex *latch) : latch_(latch) { latch_->lock(); }
+  ~Lock() { latch_->unlock(); }
+};
+
 template <typename K, typename V>
 class ExtendibleHashTable : public HashTable<K, V> {
  public:
