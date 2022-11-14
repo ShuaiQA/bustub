@@ -80,16 +80,16 @@ auto ExtendibleHashTable<K, V>::Remove(const K &key) -> bool {
   return dir_[IndexOf(key)]->Remove(key);
 }
 
+/* 获取当前的index，判断能不能插入对应的index(进行while判断)
+如果不能插入,将index的内容赋值给temp,然后将index和other进行设置为空
+将temp里面的内容继续调用当前的函数进行递归的插入
+已知当前的index如果超出大小的话,如何找到另一个other
+如果在vector中有4个Bucket同时指向一个地方,扩展的时候应该怎么进行扩展 */
 template <typename K, typename V>
 void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
-  //获取当前的index，判断能不能插入对应的index(进行while判断)
-  //如果不能插入,将index的内容赋值给temp,然后将index和other进行设置为空
-  //将temp里面的内容继续调用当前的函数进行递归的插入
-  //已知当前的index如果超出大小的话,如何找到另一个other
-  //如果在vector中有4个Bucket同时指向一个地方,扩展的时候应该怎么进行扩展
   latch_.lock();
   int index = IndexOf(key);
-  while (!dir_[index]->Insert(key, value)) {  //看看能不能插入
+  while (!dir_[index]->Insert(key, value)) {  // 看看能不能插入
     latch_.unlock();
     auto cur = dir_[index];                             // temp 原有的key-value放到cur中
     if (dir_[index]->GetDepth() == GetGlobalDepth()) {  // dir扩展2倍
@@ -105,9 +105,9 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
       }
     }
     auto fill_list = cur->GetItems();
-    //对当前的list进行划分
+    // 对当前的list进行划分
     auto begin = fill_list.begin();
-    while (begin != fill_list.end()) {  //当前的key和value应该调用本函数
+    while (begin != fill_list.end()) {  // 当前的key和value应该调用本函数
       int cur_index = IndexOf(begin->first);
       if (cur_index == index) {
         Insert(begin->first, begin->second);

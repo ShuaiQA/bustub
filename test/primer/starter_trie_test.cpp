@@ -87,7 +87,7 @@ TEST(StarterTest, TrieInsertTest) {
     trie.GetValue<int>("abc", &success);
     EXPECT_EQ(success, false);
   }
-  /* {
+  {
     Trie trie;
     trie.Insert<std::string>("abc", "d");
     bool success = true;
@@ -134,7 +134,7 @@ TEST(StarterTest, TrieInsertTest) {
 
     trie.GetValue<int>("aaaa", &success);
     EXPECT_EQ(success, false);
-  } */
+  }
 }
 
 TEST(StarterTrieTest, RemoveTest) {

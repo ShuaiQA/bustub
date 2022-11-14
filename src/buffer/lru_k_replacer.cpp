@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buffer/lru_k_replacer.h"
+#include "../include/buffer/lru_k_replacer.h"
 
 namespace bustub {
 

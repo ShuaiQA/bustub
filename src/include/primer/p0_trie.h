@@ -311,7 +311,7 @@ class Trie {
       if ((*pre)->IsEndNode()) {
         return false;
       }
-      (*pre) = std::make_unique<TrieNodeWithValue<T>>(std::move(*pre->get()), value);
+      (*pre) = std::make_unique<TrieNodeWithValue<T>>(std::move(*(pre->get())), value);
     }
     while (i < key.size()) {
       if (i == key.size() - 1) {
@@ -409,7 +409,11 @@ class Trie {
     }
     if (i == key.size() && (*pre)->IsEndNode()) {
       *success = true;
-      auto p = static_cast<TrieNodeWithValue<T> *>(pre->get());
+      auto p = dynamic_cast<TrieNodeWithValue<T> *>(pre->get());
+      if (p == nullptr) {
+        *success = false;
+        return T();
+      }
       return p->GetValue();
     }
     *success = false;
