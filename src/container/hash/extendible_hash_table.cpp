@@ -108,12 +108,7 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
     // 对当前的list进行划分
     auto begin = fill_list.begin();
     while (begin != fill_list.end()) {  // 当前的key和value应该调用本函数
-      int cur_index = IndexOf(begin->first);
-      if (cur_index == index) {
-        Insert(begin->first, begin->second);
-      } else {
-        Insert(begin->first, begin->second);
-      }
+      Insert(begin->first, begin->second);
       begin++;
     }
     num_buckets_++;
@@ -140,10 +135,7 @@ auto ExtendibleHashTable<K, V>::Bucket::Find(const K &key, V &value) -> bool {
     }
     begin++;
   }
-  if (begin == list_.end()) {
-    return false;
-  }
-  return true;
+  return begin != list_.end();
 }
 
 template <typename K, typename V>

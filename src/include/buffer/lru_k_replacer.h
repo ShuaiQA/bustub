@@ -14,14 +14,62 @@
 
 #include <limits>
 #include <list>
+#include <memory>
 #include <mutex>  // NOLINT
 #include <unordered_map>
+#include <utility>
 #include <vector>
-
-#include "common/config.h"
+#include "../common/config.h"
 #include "common/macros.h"
 
 namespace bustub {
+
+class Node {
+ public:
+  std::pair<frame_id_t, size_t> p_;
+  std::shared_ptr<Node> next_, pre_;
+  explicit Node(std::pair<frame_id_t, size_t> p) : p_(std::move(p)) {}
+};
+class DoubleList {
+ public:
+  std::shared_ptr<Node> head_, tail_;  // head_存放下一个删除的节点,tail_存放更新的节点的位置
+  int size_;
+  DoubleList() {
+    head_ = std::make_shared<Node>(std::pair<frame_id_t, size_t>(0, 0));
+    tail_ = std::make_shared<Node>(std::pair<frame_id_t, size_t>(0, 0));
+    head_->next_ = tail_;
+    tail_->pre_ = head_;
+    size_ = 0;
+  }
+  ~DoubleList() {
+    head_->next_ = nullptr;
+    tail_->pre_ = nullptr;
+  }
+  void RemoveNode(std::shared_ptr<Node> &node) {
+    node->pre_->next_ = node->next_;
+    node->next_->pre_ = node->pre_;
+    node->pre_ = nullptr;
+    node->next_ = nullptr;
+    size_--;
+  }
+  void AddNodeToTail(std::shared_ptr<Node> &node) {  // 更新的时候需要
+    auto temp = tail_->pre_;
+    temp->next_ = node;
+    node->pre_ = temp;
+    tail_->pre_ = node;
+    node->next_ = tail_;
+    size_++;
+  }
+  auto DeleteHeadNode() -> std::shared_ptr<Node> {  // 删除的时候需要
+    auto temp = head_->next_;
+    temp->next_->pre_ = head_;
+    head_->next_ = temp->next_;
+    temp->pre_ = nullptr;
+    temp->next_ = nullptr;
+    size_--;
+    return temp;
+  }
+};
 
 /**
  * LRUKReplacer implements the LRU-k replacement policy.
@@ -30,7 +78,7 @@ namespace bustub {
  * of all frames. Backward k-distance is computed as the difference in time between
  * current timestamp and the timestamp of kth previous access.
  *
- * A frame with less than k historical references is given
+ * A frame with less than k hist_orical references is given
  * +inf as its backward k-distance. When multiple frames have +inf backward k-distance,
  * classical LRU algorithm is used to choose victim.
  */
@@ -60,12 +108,12 @@ class LRUKReplacer {
    * @brief Find the frame with largest backward k-distance and evict that frame. Only frames
    * that are marked as 'evictable' are candidates for eviction.
    *
-   * A frame with less than k historical references is given +inf as its backward k-distance.
+   * A frame with less than k hist_orical references is given +inf as its backward k-distance.
    * If multiple frames have inf backward k-distance, then evict the frame with the earliest
    * timestamp overall.
    *
    * Successful eviction of a frame should decrement the size of replacer and remove the frame's
-   * access history.
+   * access hist_ory.
    *
    * @param[out] frame_id id of frame that is evicted.
    * @return true if a frame is evicted successfully, false if no frames can be evicted.
@@ -76,7 +124,7 @@ class LRUKReplacer {
    * TODO(P1): Add implementation
    *
    * @brief Record the event that the given frame id is accessed at current timestamp.
-   * Create a new entry for access history if frame id has not been seen before.
+   * Create a new entry for access hist_ory if frame id has not been seen before.
    *
    * If frame id is invalid (ie. larger than replacer_size_), throw an exception. You can
    * also use BUSTUB_ASSERT to abort the process if frame id is invalid.
@@ -107,7 +155,7 @@ class LRUKReplacer {
   /**
    * TODO(P1): Add implementation
    *
-   * @brief Remove an evictable frame from replacer, along with its access history.
+   * @brief Remove an evictable frame from replacer, along with its access hist_ory.
    * This function should also decrement replacer's size if removal is successful.
    *
    * Note that this is different from evicting a frame, which always remove the frame
@@ -135,11 +183,16 @@ class LRUKReplacer {
  private:
   // TODO(student): implement me! You can replace these member variables as you like.
   // Remove maybe_unused if you start using them.
-  [[maybe_unused]] size_t current_timestamp_{0};
-  [[maybe_unused]] size_t curr_size_{0};
-  [[maybe_unused]] size_t replacer_size_;
-  [[maybe_unused]] size_t k_;
+  size_t replacer_size_;
+  size_t k_;
   std::mutex latch_;
+  std::unordered_map<frame_id_t, std::shared_ptr<Node>> cache_;
+
+ public:
+  // 历史队列双链表存储没有到达K的cache_
+  std::shared_ptr<DoubleList> hist_;
+  // 当前的cache_队列存储到达K的cach
+  std::shared_ptr<DoubleList> cach_;
 };
 
 }  // namespace bustub
