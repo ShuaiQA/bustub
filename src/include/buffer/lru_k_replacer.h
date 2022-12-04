@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <limits>
 #include <list>
 #include <memory>
@@ -20,28 +21,38 @@
 #include <utility>
 #include <vector>
 #include "../common/config.h"
+#include "common/logger.h"
 #include "common/macros.h"
 
 namespace bustub {
 
 class Node {
  public:
-  std::pair<frame_id_t, size_t> p_;
+  frame_id_t frame_id_;
+  // 用于替换算法
+  size_t cnt_;
+  // 标记是否可以被替换
+  bool is_replace_;  // false 可以被取代
   std::shared_ptr<Node> next_, pre_;
-  explicit Node(std::pair<frame_id_t, size_t> p) : p_(std::move(p)) {}
+  Node(frame_id_t frame_id, size_t cnt, bool is_replace) : frame_id_(frame_id), cnt_(cnt), is_replace_(is_replace) {}
 };
 class DoubleList {
  public:
   std::shared_ptr<Node> head_, tail_;  // head_存放下一个删除的节点,tail_存放更新的节点的位置
-  int size_;
   DoubleList() {
-    head_ = std::make_shared<Node>(std::pair<frame_id_t, size_t>(0, 0));
-    tail_ = std::make_shared<Node>(std::pair<frame_id_t, size_t>(0, 0));
+    // 内存泄漏
+    head_ = std::make_shared<Node>(0, 0, false);
+    tail_ = std::make_shared<Node>(0, 0, false);
     head_->next_ = tail_;
     tail_->pre_ = head_;
-    size_ = 0;
   }
   ~DoubleList() {
+    auto c = head_->next_;
+    while (c != tail_) {
+      auto b = c->next_;
+      RemoveNode(c);
+      c = b;
+    }
     head_->next_ = nullptr;
     tail_->pre_ = nullptr;
   }
@@ -50,7 +61,6 @@ class DoubleList {
     node->next_->pre_ = node->pre_;
     node->pre_ = nullptr;
     node->next_ = nullptr;
-    size_--;
   }
   void AddNodeToTail(std::shared_ptr<Node> &node) {  // 更新的时候需要
     auto temp = tail_->pre_;
@@ -58,16 +68,26 @@ class DoubleList {
     node->pre_ = temp;
     tail_->pre_ = node;
     node->next_ = tail_;
-    size_++;
   }
-  auto DeleteHeadNode() -> std::shared_ptr<Node> {  // 删除的时候需要
+  // 删除一个节点，如果没有返回空
+  auto DeleteFirstEvictableNode() -> std::shared_ptr<Node> {
+    auto temp = GetFirstEvictableNode();
+    if (temp != nullptr) {
+      RemoveNode(temp);
+      return temp;
+    }
+    return nullptr;
+  }
+  // 返回一个可以最开始的删除的节点
+  auto GetFirstEvictableNode() -> std::shared_ptr<Node> {
     auto temp = head_->next_;
-    temp->next_->pre_ = head_;
-    head_->next_ = temp->next_;
-    temp->pre_ = nullptr;
-    temp->next_ = nullptr;
-    size_--;
-    return temp;
+    while (temp != tail_) {
+      if (!temp->is_replace_) {
+        break;
+      }
+      temp = temp->next_;
+    }
+    return temp == tail_ ? nullptr : temp;
   }
 };
 
@@ -183,16 +203,37 @@ class LRUKReplacer {
  private:
   // TODO(student): implement me! You can replace these member variables as you like.
   // Remove maybe_unused if you start using them.
-  size_t replacer_size_;
-  size_t k_;
+  size_t replacer_size_;  // 标记当前最大包含可驱逐和不可驱逐的数目
+  size_t k_;              // 如果访问次数大于等于k_将hist_中的数据放到cach_中
   std::mutex latch_;
-  std::unordered_map<frame_id_t, std::shared_ptr<Node>> cache_;
-
- public:
   // 历史队列双链表存储没有到达K的cache_
-  std::shared_ptr<DoubleList> hist_;
+  std::unordered_map<frame_id_t, std::shared_ptr<Node>> cache_;  // 保存可驱逐和不可驱逐的大小
   // 当前的cache_队列存储到达K的cach
-  std::shared_ptr<DoubleList> cach_;
+  std::shared_ptr<DoubleList> hist_, cach_;
+  size_t num_;  // 可被驱逐的帧的数目
+
+  // 将一个node节点添加到相关的map和链表中
+  void AddNode(frame_id_t frame_id, std::shared_ptr<Node> &node) {
+    if (node->cnt_ < k_) {
+      hist_->AddNodeToTail(node);
+    } else {
+      cach_->AddNodeToTail(node);
+    }
+    cache_[frame_id] = node;
+    num_++;
+  }
+
+  auto DeleteNode(frame_id_t frame_id) -> std::shared_ptr<Node> {
+    auto cur = cache_[frame_id];
+    if (cur->cnt_ < k_) {
+      hist_->RemoveNode(cur);
+    } else {
+      cach_->RemoveNode(cur);
+    }
+    cache_.erase(frame_id);
+    num_--;
+    return cur;
+  }
 };
 
 }  // namespace bustub

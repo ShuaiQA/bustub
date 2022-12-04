@@ -15,7 +15,6 @@
 #include <list>
 #include <mutex>  // NOLINT
 #include <unordered_map>
-
 #include "buffer/buffer_pool_manager.h"
 #include "buffer/lru_k_replacer.h"
 #include "common/config.h"
@@ -59,8 +58,9 @@ class BufferPoolManagerInstance : public BufferPoolManager {
    * @brief Create a new page in the buffer pool. Set page_id to the new page's id, or nullptr if all frames
    * are currently in use and not evictable (in another word, pinned).
    *
-   * You should pick the replacement frame from either the free list or the replacer (always find from the free list
-   * first), and then call the AllocatePage() method to get a new page id. If the replacement frame has a dirty page,
+   * You should pick the replacement frame from either the free list or the replacer
+   * (always find from the free list first), and then call the AllocatePage() method to get a new page id.
+   * If the replacement frame has a dirty page,
    * you should write it back to the disk first. You also need to reset the memory and metadata for the new page.
    *
    * Remember to "Pin" the frame by calling replacer.SetEvictable(frame_id, false)
@@ -75,15 +75,18 @@ class BufferPoolManagerInstance : public BufferPoolManager {
   /**
    * TODO(P1): Add implementation
    *
-   * @brief Fetch the requested page from the buffer pool. Return nullptr if page_id needs to be fetched from the disk
+   * @brief Fetch the requested page from the buffer pool.
+   * Return nullptr if page_id needs to be fetched from the disk
    * but all frames are currently in use and not evictable (in another word, pinned).
-   *
-   * First search for page_id in the buffer pool. If not found, pick a replacement frame from either the free list or
-   * the replacer (always find from the free list first), read the page from disk by calling disk_manager_->ReadPage(),
-   * and replace the old page in the frame. Similar to NewPgImp(), if the old page is dirty, you need to write it back
+   * First search for page_id in the buffer pool.
+   * If not found, pick a replacement frame from either the free list or
+   * the replacer (always find from the free list first),
+   * read the page from disk by calling disk_manager_->ReadPage(),
+   * and replace the old page in the frame. Similar to NewPgImp(),
+   * if the old page is dirty, you need to write it back
    * to disk and update the metadata of the new page
-   *
-   * In addition, remember to disable eviction and record the access history of the frame like you did for NewPgImp().
+   * In addition,
+   * remember to disable eviction and record the access history of the frame like you did for NewPgImp().
    *
    * @param page_id id of page to be fetched
    * @return nullptr if page_id cannot be fetched, otherwise pointer to the requested page
@@ -93,9 +96,8 @@ class BufferPoolManagerInstance : public BufferPoolManager {
   /**
    * TODO(P1): Add implementation
    *
-   * @brief Unpin the target page from the buffer pool. If page_id is not in the buffer pool or its pin count is already
-   * 0, return false.
-   *
+   * @brief Unpin the target page from the buffer pool.
+   * If page_id is not in the buffer pool or its pin count is already 0, return false.
    * Decrement the pin count of a page. If the pin count reaches 0, the frame should be evictable by the replacer.
    * Also, set the dirty flag on the page to indicate if the page was modified.
    *
@@ -128,11 +130,11 @@ class BufferPoolManagerInstance : public BufferPoolManager {
   /**
    * TODO(P1): Add implementation
    *
-   * @brief Delete a page from the buffer pool. If page_id is not in the buffer pool, do nothing and return true. If the
-   * page is pinned and cannot be deleted, return false immediately.
-   *
+   * @brief Delete a page from the buffer pool. If page_id is not in the buffer pool, do nothing and return true.
+   * If the page is pinned and cannot be deleted, return false immediately.
    * After deleting the page from the page table, stop tracking the frame in the replacer and add the frame
-   * back to the free list. Also, reset the page's memory and metadata. Finally, you should call DeallocatePage() to
+   * back to the free list. Also, reset the page's memory and metadata.
+   * Finally, you should call DeallocatePage() to
    * imitate freeing the page on the disk.
    *
    * @param page_id id of page to be deleted
@@ -140,25 +142,31 @@ class BufferPoolManagerInstance : public BufferPoolManager {
    */
   auto DeletePgImp(page_id_t page_id) -> bool override;
 
+  /**
+   * 创建一个缓冲池管理实例,其中pool_size代表着缓冲池能够存储多少个页, *pages_是一个pool_size大小的页面的缓冲池
+   * next_page_id_ 获取下一个可以分配的页面下标值，bucket_size_代表map的桶的大小
+   * page_table_ 根据当前需要的page查找frame_id_t所在的位置，如果没有需要将硬盘中的数据加载到缓冲池中
+   * replacer_size_ 根据当前的frame_id_t 的情况适当的进行更新
+   * free_list_存储了没有分配的frame_id
+   */
   /** Number of pages in the buffer pool. */
   const size_t pool_size_;
   /** The next page id to be allocated  */
   std::atomic<page_id_t> next_page_id_ = 0;
   /** Bucket size for the extendible hash table */
   const size_t bucket_size_ = 4;
-
   /** Array of buffer pool pages. */
   Page *pages_;
-  /** Pointer to the disk manager. */
-  DiskManager *disk_manager_ __attribute__((__unused__));
-  /** Pointer to the log manager. Please ignore this for P1. */
-  LogManager *log_manager_ __attribute__((__unused__));
   /** Page table for keeping track of buffer pool pages. */
   ExtendibleHashTable<page_id_t, frame_id_t> *page_table_;
   /** Replacer to find unpinned pages for replacement. */
   LRUKReplacer *replacer_;
   /** List of free frames that don't have any pages on them. */
   std::list<frame_id_t> free_list_;
+  /** Pointer to the disk manager. */
+  DiskManager *disk_manager_ __attribute__((__unused__));
+  /** Pointer to the log manager. Please ignore this for P1. */
+  LogManager *log_manager_ __attribute__((__unused__));
   /** This latch protects shared data structures. We recommend updating this comment to describe what it protects. */
   std::mutex latch_;
 
@@ -176,6 +184,29 @@ class BufferPoolManagerInstance : public BufferPoolManager {
     // This is a no-nop right now without a more complex data structure to track deallocated pages
   }
 
-  // TODO(student): You may add additional private members and helper functions
+  // 如果有空闲的帧直接返回,没有的话进行删除相应的帧
+  auto GetFrame() -> frame_id_t {
+    frame_id_t ans = -1;
+    if (!free_list_.empty()) {
+      ans = *free_list_.begin();
+      free_list_.pop_front();
+    } else {
+      replacer_->Evict(&ans);
+    }
+    return ans;
+  }
+  auto ChangeFrameToNewPage(frame_id_t frame_id, page_id_t page_id) {
+    if (pages_[frame_id].IsDirty()) {
+      FlushPage(pages_[frame_id].page_id_);
+    }
+    page_table_->Remove(pages_[frame_id].page_id_);
+    pages_[frame_id].page_id_ = page_id;
+    pages_[frame_id].is_dirty_ = false;
+    pages_[frame_id].pin_count_++;
+    disk_manager_->ReadPage(page_id, pages_[frame_id].GetData());
+    page_table_->Insert(page_id, frame_id);
+    replacer_->RecordAccess(frame_id);
+    replacer_->SetEvictable(frame_id, false);
+  }
 };
 }  // namespace bustub

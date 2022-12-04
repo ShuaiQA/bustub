@@ -10,34 +10,36 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../include/buffer/lru_k_replacer.h"
+#include "include/buffer/lru_k_replacer.h"
 #include <algorithm>
+#include <cstdlib>
+#include <memory>
 #include "../include/container/hash/extendible_hash_table.h"
+#include "common/config.h"
 #include "common/exception.h"
 #include "common/logger.h"
 
 namespace bustub {
 
-LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) {
+LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k), num_(0) {
+  // 内存泄漏
   hist_ = std::make_shared<DoubleList>();
   cach_ = std::make_shared<DoubleList>();
 }
 
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   Lock w(&latch_);
-  bool ans = false;
-  if (hist_->size_ != 0) {
-    auto node = hist_->DeleteHeadNode();
-    *frame_id = node->p_.first;
-    cache_.erase(cache_.find(node->p_.first));
-    ans = true;
-  } else if (cach_->size_ != 0) {
-    auto node = cach_->DeleteHeadNode();
-    *frame_id = node->p_.first;
-    cache_.erase(cache_.find(node->p_.first));
-    ans = true;
+  auto cur = hist_->DeleteFirstEvictableNode();
+  if (cur == nullptr) {
+    cur = cach_->DeleteFirstEvictableNode();
+    if (cur == nullptr) {
+      return false;
+    }
   }
-  return ans;
+  cache_.erase(cur->frame_id_);
+  *frame_id = cur->frame_id_;
+  num_--;
+  return true;
 }
 
 void LRUKReplacer::RecordAccess(frame_id_t frame_id) {
@@ -45,42 +47,18 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id) {
   if (static_cast<size_t>(frame_id) > replacer_size_) {
     throw Exception(ExceptionType::OUT_OF_MEMORY, "LRUKReplacerAccess out frame_id");
   }
-  auto f = cache_.find(frame_id);
-  if (f == cache_.end()) {  // 没有找到对应的页面,创建一个页面到hist__tail_里面
-    auto node = std::make_shared<Node>(std::pair<frame_id_t, size_t>(frame_id, 1));
-    if (cache_.size() == replacer_size_) {  // 需要进行删除
-      if (hist_->size_ != 0) {              // 满了进行删除其中的一个
-        auto del = hist_->DeleteHeadNode();
-        cache_.erase(cache_.find(del->p_.second));
-      } else {
-        auto del = cach_->DeleteHeadNode();
-        cache_.erase(cache_.find(del->p_.second));
-      }
+  auto f = cache_.find(frame_id);  // 查看当前是否存在如果存在的话增加，如果没有存在那么增加
+  if (f == cache_.end()) {         // 没有找到对应的页面,创建一个页面到hist__tail_里面
+    std::shared_ptr<Node> node = std::make_shared<Node>(frame_id, 1, false);
+    if (cache_.size() == replacer_size_) {  // 如果当前已经满了,进行删除操作
+      frame_id_t *rep = nullptr;
+      Evict(rep);
     }
-    hist_->AddNodeToTail(node);  // 进行添加进去
-    cache_[frame_id] = node;
-  } else {
-    // 找到对应的map中的Node,获取当前的Node修改cnt,如果当前的cnt==k-1,从hist_中删除,将其放到cache__tail_里,
-    // 如果当前cnt<k-1,修改cnt,从hist_双链表原地方进行删除,将其放到hist__tail_里
-    auto node = f->second;            // 找到当前的节点
-    if (node->p_.second == k_ - 1) {  // 如果当前的节点正好是k-1,将其从hist_放到cach中
-      hist_->RemoveNode(node);
-      cach_->AddNodeToTail(node);
-      node->p_.second++;
-    } else if (node->p_.second < k_ - 1) {  // 小于某一个边界值,将其移动到hist_的tail_里面
-      hist_->RemoveNode(node);
-      hist_->AddNodeToTail(node);
-      node->p_.second++;
-    } else if (node->p_.second >= k_ && node->p_.second < k_ * 2) {
-      // 处于cach中,进行放到尾部
-      cach_->RemoveNode(node);
-      cach_->AddNodeToTail(node);
-      node->p_.second++;
-    } else {  // 处在cache_中并且 == replacer_size_*2, 那么将其更新到cach的尾部,重置p_.second == replacer_size_
-      cach_->RemoveNode(node);
-      cach_->AddNodeToTail(node);
-      node->p_.second = replacer_size_;
-    }
+    AddNode(frame_id, node);
+  } else {  // 找到当前的节点
+    auto cur = DeleteNode(frame_id);
+    cur->cnt_++;
+    AddNode(frame_id, cur);
   }
 }
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
@@ -89,25 +67,15 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
     throw Exception(ExceptionType::OUT_OF_MEMORY, "LRUKReplacerAccess out frame_id");
   }
   auto f = cache_.find(frame_id);
-  if (f == cache_.end() && set_evictable) {  // 没有找到对应的页面,创建一个页面到hist__tail_里面
-    auto node = std::make_shared<Node>(std::pair<frame_id_t, size_t>(frame_id, 1));
-    if (cache_.size() == replacer_size_) {  // 需要进行删除
-      if (hist_->size_ != 0) {              // 满了进行删除其中的一个
-        hist_->DeleteHeadNode();
-      } else {
-        cach_->DeleteHeadNode();
-      }
+  if (f != cache_.end()) {                          // 能够找到相关的值
+    if (set_evictable && f->second->is_replace_) {  // 设置为可以替换的,当前是不可以取代的
+      f->second->is_replace_ = false;
+      num_++;
     }
-    hist_->AddNodeToTail(node);  // 进行添加进去
-    cache_[frame_id] = node;
-  }
-  if (f != cache_.end() && !set_evictable) {
-    if (f->second->p_.second >= k_) {
-      cach_->RemoveNode(f->second);
-    } else {
-      hist_->RemoveNode(f->second);
+    if (!set_evictable && !f->second->is_replace_) {  // 设置为不可以替换的,当前是可以替换的
+      f->second->is_replace_ = true;
+      num_--;
     }
-    cache_.erase(f);
   }
 }
 
@@ -118,18 +86,16 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {
   }
   auto f = cache_.find(frame_id);
   if (f != cache_.end()) {
-    if (f->second->p_.second >= k_) {
-      cach_->RemoveNode(f->second);
-    } else {
-      hist_->RemoveNode(f->second);
+    if (f->second->is_replace_) {
+      throw Exception(ExceptionType::OUT_OF_MEMORY, "LRUKReplacerAccess remove a pin frame");
     }
-    cache_.erase(f);
+    DeleteNode(frame_id);
   }
 }
 
 auto LRUKReplacer::Size() -> size_t {
   Lock w(&latch_);
-  return cache_.size();
+  return num_;
 }
 
 }  // namespace bustub
