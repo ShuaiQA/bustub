@@ -5,6 +5,7 @@
 #include <memory>
 #include <thread>  // NOLINT
 
+#include "common/logger.h"
 #include "container/hash/extendible_hash_table.h"
 #include "gtest/gtest.h"
 

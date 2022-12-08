@@ -195,17 +195,24 @@ class BufferPoolManagerInstance : public BufferPoolManager {
     }
     return ans;
   }
-  auto ChangeFrameToNewPage(frame_id_t frame_id, page_id_t page_id) {
+  void ChangeFrameToNewPage(frame_id_t frame_id, page_id_t page_id) {
+    // 如果需要释放的帧的脏位是true,那么需要进行将本页进行刷新到相应的地方
     if (pages_[frame_id].IsDirty()) {
-      FlushPage(pages_[frame_id].page_id_);
+      FlushPgImp(pages_[frame_id].page_id_);
     }
+    // 对于需要释放的帧我们需要删除原有的page_table_
     page_table_->Remove(pages_[frame_id].page_id_);
+    // 对新的帧和页表进行初始化
     pages_[frame_id].page_id_ = page_id;
     pages_[frame_id].is_dirty_ = false;
-    pages_[frame_id].pin_count_++;
+    pages_[frame_id].pin_count_ = 1;
+    // 读取相应的页面到缓冲区的页面中
     disk_manager_->ReadPage(page_id, pages_[frame_id].GetData());
+    // 插入新的内容到page_table_中
     page_table_->Insert(page_id, frame_id);
+    // 记录一次LRU-K次数
     replacer_->RecordAccess(frame_id);
+    // 设置为不可删除的
     replacer_->SetEvictable(frame_id, false);
   }
 };

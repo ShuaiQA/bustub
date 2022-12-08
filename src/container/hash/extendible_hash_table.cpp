@@ -11,25 +11,33 @@
 //===----------------------------------------------------------------------===//
 
 #include "container/hash/extendible_hash_table.h"
+#include <strings.h>
 #include <unistd.h>
+#include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cstdlib>
 #include <functional>
+#include <iterator>
 #include <list>
+#include <memory>
 #include <utility>
 #include "common/logger.h"
+#include "parser/parser.hpp"
 #include "storage/page/page.h"
 
 namespace bustub {
 
 template <typename K, typename V>
-ExtendibleHashTable<K, V>::ExtendibleHashTable(size_t bucket_size)
-    : global_depth_(0), bucket_size_(bucket_size), num_buckets_(1) {
+ExtendibleHashTable<K, V>::ExtendibleHashTable(size_t bucket_size) : bucket_size_(bucket_size) {
+  global_depth_ = 0;
+  num_buckets_ = 1;
   dir_ = std::vector<std::shared_ptr<Bucket>>(1, std::make_shared<Bucket>(bucket_size));
 }
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::IndexOf(const K &key) -> size_t {
+  // 根据当前的全局depth,获取hash的后全局depth位
   int mask = (1 << global_depth_) - 1;
   return std::hash<K>()(key) & mask;
 }
@@ -69,53 +77,64 @@ auto ExtendibleHashTable<K, V>::GetNumBucketsInternal() const -> int {
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Find(const K &key, V &value) -> bool {
-  Lock w(&latch_);
+  std::scoped_lock<std::mutex> lock(latch_);
   auto index = IndexOf(key);
   return dir_[index]->Find(key, value);
 }
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Remove(const K &key) -> bool {
-  Lock w(&latch_);
-  return dir_[IndexOf(key)]->Remove(key);
+  std::scoped_lock<std::mutex> lock(latch_);
+  size_t pos = IndexOf(key);
+  return dir_[pos]->Remove(key);
 }
 
-/* 获取当前的index，判断能不能插入对应的index(进行while判断)
-如果不能插入,将index的内容赋值给temp,然后将index和other进行设置为空
-将temp里面的内容继续调用当前的函数进行递归的插入
-已知当前的index如果超出大小的话,如何找到另一个other
-如果在vector中有4个Bucket同时指向一个地方,扩展的时候应该怎么进行扩展 */
+/*
+ * 获取当前的index，判断能不能插入对应的index(进行while判断)
+ * 如果在vector中有4个Bucket同时指向一个地方,扩展的时候应该怎么进行扩展?查看最后的指针的修改
+ */
 template <typename K, typename V>
 void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
-  latch_.lock();
-  int index = IndexOf(key);
-  while (!dir_[index]->Insert(key, value)) {  // 看看能不能插入
-    latch_.unlock();
-    auto cur = dir_[index];                             // temp 原有的key-value放到cur中
-    if (dir_[index]->GetDepth() == GetGlobalDepth()) {  // dir扩展2倍
+  std::scoped_lock<std::mutex> lock(latch_);
+  size_t index = IndexOf(key);  // 获取vector中的下标
+  // 查看是否存在key,如果存在直接进行更新
+  V val;
+  if (dir_[index]->Find(key, val)) {  // 已经存在直接调用桶函数进行修改
+    dir_[index]->Insert(key, value);
+    return;
+  }
+  // 当前不存在查看当前的桶是否是满的
+  while (dir_[index]->IsFull()) {  // 满的话返回true,执行下面的扩充函数
+    int local_dep = dir_[index]->GetDepth();
+    if (global_depth_ == local_dep) {  // 进行dir_*2倍扩充,使指针指向相同的地方
+      decltype(dir_.size()) cnt = dir_.size();
+      dir_.reserve(cnt * 2);
+      std::copy_n(dir_.begin(), cnt, std::back_inserter(dir_));
       global_depth_++;
-      std::vector<std::shared_ptr<Bucket>> cur(dir_.size() * 2);
-      auto min = copy(dir_.begin(), dir_.end(), cur.begin());
-      copy(dir_.begin(), dir_.end(), min);
-      dir_ = cur;
     }
-    for (decltype(dir_.size()) a = 0; a < dir_.size(); a++) {
-      if (dir_[a] == cur) {
-        dir_[a] = std::make_shared<Bucket>(bucket_size_, cur->GetDepth() + 1);
+    auto b0 = std::make_shared<Bucket>(bucket_size_, local_dep + 1);
+    auto b1 = std::make_shared<Bucket>(bucket_size_, local_dep + 1);
+    int local_mask = 1 << local_dep;
+    for (const auto &[k, v] : dir_[index]->GetItems()) {
+      size_t cur = std::hash<K>()(k) & local_mask;  // 类似一个是0000,一个是1000
+      if (static_cast<bool>(cur)) {
+        b1->Insert(k, v);
+      } else {
+        b0->Insert(k, v);
       }
     }
-    auto fill_list = cur->GetItems();
-    // 对当前的list进行划分
-    auto begin = fill_list.begin();
-    while (begin != fill_list.end()) {  // 当前的key和value应该调用本函数
-      Insert(begin->first, begin->second);
-      begin++;
+    // 对于相关的vector的指针，我们需要进行调整为新的b0和b1
+    for (size_t i = (std::hash<K>()(key) & (local_mask - 1)); i < dir_.size(); i += local_mask) {
+      if (static_cast<bool>(i & local_mask)) {
+        dir_[i] = b1;
+      } else {
+        dir_[i] = b0;
+      }
     }
     num_buckets_++;
     index = IndexOf(key);
-    latch_.lock();
   }
-  latch_.unlock();
+  dir_[index]->Insert(key, value);
 }
 
 //===--------------------------------------------------------------------===//
@@ -157,10 +176,8 @@ auto ExtendibleHashTable<K, V>::Bucket::Remove(const K &key) -> bool {
 
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::Bucket::Insert(const K &key, const V &value) -> bool {
-  if (IsFull()) {
-    return false;
-  }
   auto begin = list_.begin();
+  bool v = false;
   while (begin != list_.end()) {
     K first = begin->first;
     if (first == key) {
@@ -168,12 +185,16 @@ auto ExtendibleHashTable<K, V>::Bucket::Insert(const K &key, const V &value) -> 
     }
     begin++;
   }
-  if (begin == list_.end()) {
-    list_.push_back(std::pair<K, V>(key, value));
-  } else {
+  if (begin == list_.end()) {  // 没有找到当前的值,进行添加
+    if (!IsFull()) {
+      list_.push_back(std::pair<K, V>(key, value));
+      v = true;
+    }
+  } else {  // 查找到当前的值进行修改
     begin->second = value;
+    v = true;
   }
-  return true;
+  return v;
 }
 
 template class ExtendibleHashTable<page_id_t, Page *>;

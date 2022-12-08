@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <limits>
 #include <list>
@@ -23,73 +24,9 @@
 #include "../common/config.h"
 #include "common/logger.h"
 #include "common/macros.h"
+#include "nodes/nodes.hpp"
 
 namespace bustub {
-
-class Node {
- public:
-  frame_id_t frame_id_;
-  // 用于替换算法
-  size_t cnt_;
-  // 标记是否可以被替换
-  bool is_replace_;  // false 可以被取代
-  std::shared_ptr<Node> next_, pre_;
-  Node(frame_id_t frame_id, size_t cnt, bool is_replace) : frame_id_(frame_id), cnt_(cnt), is_replace_(is_replace) {}
-};
-class DoubleList {
- public:
-  std::shared_ptr<Node> head_, tail_;  // head_存放下一个删除的节点,tail_存放更新的节点的位置
-  DoubleList() {
-    // 内存泄漏
-    head_ = std::make_shared<Node>(0, 0, false);
-    tail_ = std::make_shared<Node>(0, 0, false);
-    head_->next_ = tail_;
-    tail_->pre_ = head_;
-  }
-  ~DoubleList() {
-    auto c = head_->next_;
-    while (c != tail_) {
-      auto b = c->next_;
-      RemoveNode(c);
-      c = b;
-    }
-    head_->next_ = nullptr;
-    tail_->pre_ = nullptr;
-  }
-  void RemoveNode(std::shared_ptr<Node> &node) {
-    node->pre_->next_ = node->next_;
-    node->next_->pre_ = node->pre_;
-    node->pre_ = nullptr;
-    node->next_ = nullptr;
-  }
-  void AddNodeToTail(std::shared_ptr<Node> &node) {  // 更新的时候需要
-    auto temp = tail_->pre_;
-    temp->next_ = node;
-    node->pre_ = temp;
-    tail_->pre_ = node;
-    node->next_ = tail_;
-  }
-  // 删除一个节点，如果没有返回空
-  auto DeleteFirstEvictableNode() -> std::shared_ptr<Node> {
-    auto temp = GetFirstEvictableNode();
-    if (temp != nullptr) {
-      RemoveNode(temp);
-      return temp;
-    }
-    return nullptr;
-  }
-  // 返回一个可以最开始的删除的节点
-  auto GetFirstEvictableNode() -> std::shared_ptr<Node> {
-    auto temp = head_->next_;
-    while (temp != tail_) {
-      if (!temp->is_replace_) {
-        break;
-      }
-      temp = temp->next_;
-    }
-    return temp == tail_ ? nullptr : temp;
-  }
-};
 
 /**
  * LRUKReplacer implements the LRU-k replacement policy.
@@ -200,6 +137,27 @@ class LRUKReplacer {
    */
   auto Size() -> size_t;
 
+  class Node {
+   public:
+    size_t cnt_;
+    bool replace_;
+    frame_id_t frame_;
+    explicit Node(frame_id_t frame, size_t cnt = 1, bool replace = false)
+        : cnt_(cnt), replace_(replace), frame_(frame) {}
+  };
+
+  void Debug() {
+    for (const auto [k, v] : cache_) {
+      LOG_INFO("frame [%d], Node(%d,%d,%d)\n", k, v->frame_, static_cast<int>(v->cnt_), v->replace_);
+    }
+    for (auto node : hist_) {
+      LOG_INFO("Node(%d,%d,%d)\n", node.frame_, static_cast<int>(node.cnt_), node.replace_);
+    }
+    for (auto node : cach_) {
+      LOG_INFO("Node(%d,%d,%d)\n", node.frame_, static_cast<int>(node.cnt_), node.replace_);
+    }
+  }
+
  private:
   // TODO(student): implement me! You can replace these member variables as you like.
   // Remove maybe_unused if you start using them.
@@ -207,33 +165,9 @@ class LRUKReplacer {
   size_t k_;              // 如果访问次数大于等于k_将hist_中的数据放到cach_中
   std::mutex latch_;
   // 历史队列双链表存储没有到达K的cache_
-  std::unordered_map<frame_id_t, std::shared_ptr<Node>> cache_;  // 保存可驱逐和不可驱逐的大小
-  // 当前的cache_队列存储到达K的cach
-  std::shared_ptr<DoubleList> hist_, cach_;
-  size_t num_;  // 可被驱逐的帧的数目
-
-  // 将一个node节点添加到相关的map和链表中
-  void AddNode(frame_id_t frame_id, std::shared_ptr<Node> &node) {
-    if (node->cnt_ < k_) {
-      hist_->AddNodeToTail(node);
-    } else {
-      cach_->AddNodeToTail(node);
-    }
-    cache_[frame_id] = node;
-    num_++;
-  }
-
-  auto DeleteNode(frame_id_t frame_id) -> std::shared_ptr<Node> {
-    auto cur = cache_[frame_id];
-    if (cur->cnt_ < k_) {
-      hist_->RemoveNode(cur);
-    } else {
-      cach_->RemoveNode(cur);
-    }
-    cache_.erase(frame_id);
-    num_--;
-    return cur;
-  }
+  std::unordered_map<frame_id_t, std::list<Node>::iterator> cache_;
+  std::list<Node> hist_, cach_;  // hist_中的元素使用FIFO进行删除begin,cach_元素使用LRU进行删除begin
+  size_t num_;                   // 可被驱逐的帧的数目
 };
 
 }  // namespace bustub

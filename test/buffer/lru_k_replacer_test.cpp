@@ -11,7 +11,7 @@
 #include <set>
 #include <thread>  // NOLINT
 #include <vector>
-
+#include "common/logger.h"
 #include "gtest/gtest.h"
 
 namespace bustub {
@@ -33,7 +33,6 @@ TEST(LRUKReplacerTest, SampleTest) {
   lru_replacer.SetEvictable(5, true);
   lru_replacer.SetEvictable(6, false);
   ASSERT_EQ(5, lru_replacer.Size());
-
   // Scenario: Insert access history for frame 1. Now frame 1 has two access histories.
   // All other frames have max backward k-dist. The order of eviction is [2,3,4,5,1].
   lru_replacer.RecordAccess(1);
