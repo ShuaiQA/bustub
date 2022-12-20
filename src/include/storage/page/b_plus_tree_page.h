@@ -20,11 +20,14 @@
 
 namespace bustub {
 
+// 生成一个key Value类型的pair
 #define MappingType std::pair<KeyType, ValueType>
 
+// 用于定义模板类或者模板方法
+// KeyComparator 左值<右值返回-1,  == return 0 , > return 1
 #define INDEX_TEMPLATE_ARGUMENTS template <typename KeyType, typename ValueType, typename KeyComparator>
 
-// define page type enum
+// define page type enum  无效值、叶子节点、内部节点
 enum class IndexPageType { INVALID_INDEX_PAGE = 0, LEAF_PAGE, INTERNAL_PAGE };
 
 /**
@@ -44,6 +47,7 @@ class BPlusTreePage {
  public:
   auto IsLeafPage() const -> bool;
   auto IsRootPage() const -> bool;
+  auto IsFull() const -> bool;
   void SetPageType(IndexPageType page_type);
 
   auto GetSize() const -> int;
@@ -64,6 +68,9 @@ class BPlusTreePage {
 
  private:
   // member variable, attributes that both internal and leaf page share
+  // 每一个页面都会存在的东西
+  // 记录了当前的页面是否是内部节点或者叶子节点 page_type_,当前页面K,V的个数size_
+  // 当前页面最大K,V的个数，父页面的page_id，自己页面的page_id
   IndexPageType page_type_ __attribute__((__unused__));
   lsn_t lsn_ __attribute__((__unused__));
   int size_ __attribute__((__unused__));

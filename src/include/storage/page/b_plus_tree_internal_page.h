@@ -12,12 +12,15 @@
 
 #include <queue>
 
+#include "common/config.h"
 #include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
 
 #define B_PLUS_TREE_INTERNAL_PAGE_TYPE BPlusTreeInternalPage<KeyType, ValueType, KeyComparator>
+// 每一个页面的头部标识所需要的字节数
 #define INTERNAL_PAGE_HEADER_SIZE 24
+// 每一页的大小是4096减去内部页面头部的24字节，在除以MappingType(pair<K,V>的大小)获得一个页面能够存储的MappingType
 #define INTERNAL_PAGE_SIZE ((BUSTUB_PAGE_SIZE - INTERNAL_PAGE_HEADER_SIZE) / (sizeof(MappingType)))
 /**
  * Store n indexed keys and n+1 child pointers (page_id) within internal page.
@@ -41,9 +44,16 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   auto KeyAt(int index) const -> KeyType;
   void SetKeyAt(int index, const KeyType &key);
   auto ValueAt(int index) const -> ValueType;
+  auto GetNextPageId(const KeyType &key, const KeyComparator &comp) -> page_id_t;
+  void SetIndexKeyValue(int index, const KeyType &key, const ValueType &val);
+  // 将一个节点的内部array_一般的元素,移动到另一个next中
+  // 一般是对于满的节点的操作
+  void Insert(const KeyType &key, const ValueType &val, const KeyComparator &comp);
+
+  auto Split(B_PLUS_TREE_INTERNAL_PAGE_TYPE *other, const KeyComparator &comp) -> KeyType;
 
  private:
   // Flexible array member for page data.
-  MappingType array_[1];
+  MappingType array_[INTERNAL_PAGE_SIZE];
 };
 }  // namespace bustub

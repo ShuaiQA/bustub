@@ -14,6 +14,7 @@
 #include <cstdio>
 
 #include "buffer/buffer_pool_manager_instance.h"
+#include "common/logger.h"
 #include "gtest/gtest.h"
 #include "storage/index/b_plus_tree.h"
 #include "test_util.h"  // NOLINT
@@ -127,7 +128,7 @@ TEST(BPlusTreeTests, DISABLED_InsertTest2) {
   remove("test.log");
 }
 
-TEST(BPlusTreeTests, DISABLED_InsertTest3) {
+TEST(BPlusTreeTests, InsertTest3) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -165,6 +166,7 @@ TEST(BPlusTreeTests, DISABLED_InsertTest3) {
     int64_t value = key & 0xFFFFFFFF;
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
+  LOG_DEBUG("pass");
 
   int64_t start_key = 1;
   int64_t current_key = start_key;
@@ -176,6 +178,7 @@ TEST(BPlusTreeTests, DISABLED_InsertTest3) {
     current_key = current_key + 1;
   }
 
+  LOG_DEBUG("pass");
   EXPECT_EQ(current_key, keys.size() + 1);
 
   start_key = 3;
@@ -188,6 +191,7 @@ TEST(BPlusTreeTests, DISABLED_InsertTest3) {
     current_key = current_key + 1;
   }
 
+  LOG_DEBUG("pass");
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete transaction;
   delete disk_manager;

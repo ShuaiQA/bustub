@@ -12,8 +12,10 @@
 #include <iostream>
 #include <sstream>
 
+#include "common/config.h"
 #include "common/exception.h"
 #include "storage/page/b_plus_tree_internal_page.h"
+#include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
 /*****************************************************************************
@@ -22,10 +24,17 @@ namespace bustub {
 /*
  * Init method after creating a new internal page
  * Including set page type, set current size, set page id, set parent id and set
- * max page size
+ * max page max_size
+ * 设置size==1,type==internal
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, int max_size) {}
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, int max_size) {
+  SetMaxSize(max_size);
+  SetParentPageId(parent_id);
+  SetPageId(page_id);
+  SetSize(0);
+  SetPageType(IndexPageType::INTERNAL_PAGE);
+}
 /*
  * Helper method to get/set the key associated with input "index"(a.k.a
  * array offset)
@@ -33,19 +42,55 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyAt(int index) const -> KeyType {
   // replace with your own code
-  KeyType key{};
-  return key;
+  return array_[index].first;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {}
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) { array_[index].first = key; }
 
 /*
  * Helper method to get the value associated with input "index"(a.k.a array
  * offset)
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const -> ValueType { return 0; }
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const -> ValueType { return array_[index].second; }
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::GetNextPageId(const KeyType &key, const KeyComparator &comp) -> page_id_t {
+  // 根据当前的key进行在内部节点中进行查找,获取到ValueType也就是下一个页面的值
+  int i = GetSize() - 1;
+  while (i >= 1 && comp(array_[i].first, key) > 0) {
+    i--;
+  }
+  return array_[i].second;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetIndexKeyValue(int index, const KeyType &key, const ValueType &val) {
+  array_[index] = {key, val};
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Insert(const KeyType &key, const ValueType &val, const KeyComparator &comp) {
+  // 对于叶子节点的插入不需要进行判断是否重复的
+  int i = GetSize() - 1;
+  while (i >= 0 && comp(array_[i].first, key) > 0) {
+    array_[i + 1] = array_[i];
+    i--;
+  }
+  array_[i + 1] = {key, val};
+  IncreaseSize(1);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Split(B_PLUS_TREE_INTERNAL_PAGE_TYPE *other, const KeyComparator &comp)
+    -> KeyType {
+  for (int size = GetMinSize() + 1; size <= GetMaxSize(); size++) {
+    other->Insert(array_[size].first, array_[size].second, comp);
+  }
+  IncreaseSize(GetMinSize() - GetMaxSize());
+  return other->array_[0].first;
+}
 
 // valuetype for internalNode should be page id_t
 template class BPlusTreeInternalPage<GenericKey<4>, page_id_t, GenericComparator<4>>;

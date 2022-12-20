@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include "common/config.h"
 #include "concurrency/transaction.h"
 #include "storage/index/index_iterator.h"
 #include "storage/page/b_plus_tree_internal_page.h"
@@ -35,8 +36,11 @@ namespace bustub {
  */
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTree {
+  // 对于一个内部节点来说,他的value应该是下一个页面
   using InternalPage = BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;
+  // 对于一个叶子节点来说,他的value应该是指向真实数据的指针
   using LeafPage = BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>;
+  // 由此引申出来内部节点和叶子节点的max_size是不一样的,因为pair的大小是不一样的
 
  public:
   explicit BPlusTree(std::string name, BufferPoolManager *buffer_pool_manager, const KeyComparator &comparator,
@@ -51,7 +55,7 @@ class BPlusTree {
   // Remove a key and its value from this B+ tree.
   void Remove(const KeyType &key, Transaction *transaction = nullptr);
 
-  // return the value associated with a given key
+  // return the value associated with a given key,与Search进行匹配
   auto GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction = nullptr) -> bool;
 
   // return the page id of the root node
@@ -82,7 +86,17 @@ class BPlusTree {
 
   void ToString(BPlusTreePage *page, BufferPoolManager *bpm) const;
 
-  // member variable
+  auto Search(page_id_t root, const KeyType &key, std::vector<ValueType> *result, Transaction *transaction = nullptr)
+      -> bool;
+
+  auto CreateNewLeafPage(page_id_t *page_id, page_id_t parent = INVALID_PAGE_ID) -> bool;
+  auto CreateNewInternalPage(page_id_t *page_id, page_id_t parent = INVALID_PAGE_ID) -> bool;
+  void DfsSplit(InternalPage *parent, BPlusTreePage *child);
+
+  // 根据传入的key找到应该存储的 page_id_t 如果当前的page_id_t里面没有进行插入
+  auto FindShouldLocalPage(page_id_t root, const KeyType &key) -> LeafPage *;
+
+  // 当前的变量保存这根节点的页面、缓冲池的指针、一个比较器、叶节点的最大容量、内部节点的最大容量
   std::string index_name_;
   page_id_t root_page_id_;
   BufferPoolManager *buffer_pool_manager_;

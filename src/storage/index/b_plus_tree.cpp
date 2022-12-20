@@ -1,10 +1,19 @@
+#include <ios>
+#include <memory>
+#include <new>
 #include <string>
 
+#include "common/config.h"
 #include "common/exception.h"
 #include "common/logger.h"
 #include "common/rid.h"
+#include "concurrency/transaction.h"
 #include "storage/index/b_plus_tree.h"
+#include "storage/page/b_plus_tree_internal_page.h"
+#include "storage/page/b_plus_tree_leaf_page.h"
+#include "storage/page/b_plus_tree_page.h"
 #include "storage/page/header_page.h"
+#include "storage/page/page.h"
 
 namespace bustub {
 INDEX_TEMPLATE_ARGUMENTS
@@ -19,9 +28,10 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, BufferPoolManager *buffer_pool_manag
 
 /*
  * Helper function to decide whether current b+tree is empty
+ * 如果当前的页面是无效的代表当前的节点是空的
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return true; }
+auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return root_page_id_ == INVALID_PAGE_ID; }
 /*****************************************************************************
  * SEARCH
  *****************************************************************************/
@@ -32,7 +42,41 @@ auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return true; }
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction) -> bool {
-  return false;
+  auto leaf_data = FindShouldLocalPage(root_page_id_, key);
+  return leaf_data->FindValueAddVector(key, result, comparator_);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::FindShouldLocalPage(page_id_t root, const KeyType &key) -> LeafPage * {
+  // 根据传入的key返回当前的key可能应该插入在哪一个叶子节点中
+  auto page = buffer_pool_manager_->FetchPage(root);
+  auto data = reinterpret_cast<BPlusTreePage *>(page);
+  if (data->IsLeafPage()) {
+    return reinterpret_cast<LeafPage *>(data);
+  }
+  auto internal_data = reinterpret_cast<InternalPage *>(data);
+  page_id_t next_page = internal_data->GetNextPageId(key, comparator_);
+  buffer_pool_manager_->UnpinPage(root, false);
+  return FindShouldLocalPage(next_page, key);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::CreateNewLeafPage(page_id_t *page_id, page_id_t parent) -> bool {
+  auto page = buffer_pool_manager_->NewPage(page_id);
+  auto data = reinterpret_cast<LeafPage *>(page);
+  // 对于根节点进行set函数,设置大小、父页面、当前页面、当前类别
+  data->Init(*page_id, parent, leaf_max_size_);
+  buffer_pool_manager_->UnpinPage(*page_id, true);
+  return true;
+}
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::CreateNewInternalPage(page_id_t *page_id, page_id_t parent) -> bool {
+  auto page = buffer_pool_manager_->NewPage(page_id);
+  auto data = reinterpret_cast<InternalPage *>(page);
+  // 对于根节点进行set函数,设置大小、父页面、当前页面、当前类别
+  data->Init(*page_id, parent, internal_max_size_);
+  buffer_pool_manager_->UnpinPage(*page_id, true);
+  return true;
 }
 
 /*****************************************************************************
@@ -47,7 +91,77 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) -> bool {
-  return false;
+  // 如果当前的树是空的,建立一个新的tree,更新root page_id,插入数据,否则插入进叶子页面
+  if (IsEmpty()) {
+    CreateNewLeafPage(&root_page_id_);
+    UpdateRootPageId();
+  }
+  auto data = FindShouldLocalPage(root_page_id_, key);
+  auto v = data->Insert(key, value, comparator_);
+  if (!v) {  // 当前的key存在
+    buffer_pool_manager_->UnpinPage(data->GetPageId(), false);
+    return false;
+  }
+  Print(buffer_pool_manager_);
+  DfsSplit(reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(data->GetParentPageId())), data);
+  return true;
+}
+
+/**
+ * 根据当前的函数我们需要不断的对于当前的child进行拆分然后向上提取某个关键字
+ * 直到最后我们有可能会发现root作为child已经满了
+ * 这个时候我们需要重新设置一个根节点,让其孩子节点指向child。
+ * 我们首先找到递归出口,也就是说我们的child应该是大于size的才会执行当前的函数
+ * 否则当前的child没有超出大小不需要进行拆分
+ */
+INDEX_TEMPLATE_ARGUMENTS
+void BPLUSTREE_TYPE::DfsSplit(InternalPage *parent, BPlusTreePage *child) {
+  if (!child->IsFull()) {  // 如果当前的孩子没有满直接返回
+    LOG_DEBUG("cur not Split");
+    return;
+  }
+  // 如果一直递归到root那么进行更换root
+  if (child->GetParentPageId() == INVALID_PAGE_ID) {  // 当前已经递归到根节点了,child是满的
+    // 根据递归我们会发现child页面已经满了,但是parent是无效的
+    page_id_t root;
+    CreateNewInternalPage(&root);  // 创建一个新的root当作新节点
+    auto data = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(root));
+    data->SetIndexKeyValue(0, KeyType{}, child->GetPageId());
+    data->IncreaseSize(1);
+    parent = data;
+    root_page_id_ = root;  // 修改当前的root_page_id_
+    child->SetParentPageId(root);
+    UpdateRootPageId();
+    Print(buffer_pool_manager_);
+    LOG_DEBUG("change root is %d", root);
+    LOG_DEBUG("cur internal max size is %d", data->GetMaxSize());
+  }
+  // 如果当前的孩子满了需要进行拆分,由于上面的根节点的设置,我们始终可以保证移动到上面的是有节点可以插入的
+  // 需要对当前child节点进行拆分,然后递归执行parent节点
+  page_id_t other;
+  if (child->IsLeafPage()) {
+    CreateNewLeafPage(&other, parent->GetPageId());
+    auto other_data = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(other));
+    auto child_data = reinterpret_cast<LeafPage *>(child);
+    KeyType mid_key = child_data->Split(other_data, comparator_);
+    parent->Insert(mid_key, other_data->GetPageId(), comparator_);
+    LOG_DEBUG("cur internal size is %d", parent->GetSize());
+  } else {
+    CreateNewInternalPage(&other, parent->GetPageId());
+    auto other_data = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(other));
+    auto child_data = reinterpret_cast<InternalPage *>(child);
+    KeyType mid_key = child_data->Split(other_data, comparator_);
+    parent->Insert(mid_key, other_data->GetPageId(), comparator_);
+    LOG_DEBUG("cur internal size is %d", parent->GetSize());
+  }
+  buffer_pool_manager_->UnpinPage(other, true);
+  buffer_pool_manager_->UnpinPage(child->GetPageId(), true);
+  buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
+  LOG_DEBUG("cur Split parent is %d,split is %d,other is %d", parent->GetPageId(), child->GetPageId(), other);
+  Print(buffer_pool_manager_);
+  if (parent->IsFull()) {
+    DfsSplit(reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent->GetParentPageId())), parent);
+  }
 }
 
 /*****************************************************************************
@@ -94,7 +208,7 @@ auto BPLUSTREE_TYPE::End() -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE(); 
  * @return Page id of the root of this tree
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::GetRootPageId() -> page_id_t { return 0; }
+auto BPLUSTREE_TYPE::GetRootPageId() -> page_id_t { return root_page_id_; }
 
 /*****************************************************************************
  * UTILITIES AND DEBUG

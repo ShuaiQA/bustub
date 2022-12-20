@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <pthread.h>
 #include <utility>
 #include <vector>
 
@@ -18,6 +19,7 @@
 namespace bustub {
 
 #define B_PLUS_TREE_LEAF_PAGE_TYPE BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>
+// 多出一个next_page_id
 #define LEAF_PAGE_HEADER_SIZE 28
 #define LEAF_PAGE_SIZE ((BUSTUB_PAGE_SIZE - LEAF_PAGE_HEADER_SIZE) / sizeof(MappingType))
 
@@ -49,10 +51,18 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto GetNextPageId() const -> page_id_t;
   void SetNextPageId(page_id_t next_page_id);
   auto KeyAt(int index) const -> KeyType;
+  auto Insert(const KeyType &key, const ValueType &val, const KeyComparator &comp) -> bool;
+
+  // 将当前已经满的节点拆分成other中去
+  auto Split(B_PLUS_TREE_LEAF_PAGE_TYPE *other, const KeyComparator &comp) -> KeyType;
+
+  // 根据传入的Key找到相应的值
+  auto FindValueAddVector(const KeyType &key, std::vector<ValueType> *result, const KeyComparator &comp) -> bool;
 
  private:
+  // 保存下一个页面的索引
   page_id_t next_page_id_;
   // Flexible array member for page data.
-  MappingType array_[1];
+  MappingType array_[LEAF_PAGE_SIZE];
 };
 }  // namespace bustub
