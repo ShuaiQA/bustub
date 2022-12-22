@@ -52,6 +52,8 @@ class BPlusTreeInternalPage : public BPlusTreePage {
 
   auto Split(B_PLUS_TREE_INTERNAL_PAGE_TYPE *other, const KeyComparator &comp) -> KeyType;
 
+  auto ChangePos0Key(const KeyType &oldkey, const KeyType &newkey, const KeyComparator &comp) -> bool;
+
  private:
   // Flexible array member for page data.
   MappingType array_[INTERNAL_PAGE_SIZE];

@@ -93,6 +93,8 @@ class BPlusTree {
   auto CreateNewInternalPage(page_id_t *page_id, page_id_t parent = INVALID_PAGE_ID) -> bool;
   void DfsSplit(InternalPage *parent, BPlusTreePage *child);
 
+  void DfsChangePos0(page_id_t father, const KeyType &oldkey, const KeyType &newkey);
+
   // 根据传入的key找到应该存储的 page_id_t 如果当前的page_id_t里面没有进行插入
   auto FindShouldLocalPage(page_id_t root, const KeyType &key) -> LeafPage *;
 

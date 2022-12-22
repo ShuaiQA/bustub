@@ -2,6 +2,7 @@
 #include <memory>
 #include <new>
 #include <string>
+#include <utility>
 
 #include "common/config.h"
 #include "common/exception.h"
@@ -159,9 +160,7 @@ void BPLUSTREE_TYPE::DfsSplit(InternalPage *parent, BPlusTreePage *child) {
   buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
   LOG_DEBUG("cur Split parent is %d,split is %d,other is %d", parent->GetPageId(), child->GetPageId(), other);
   Print(buffer_pool_manager_);
-  if (parent->IsFull()) {
-    DfsSplit(reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent->GetParentPageId())), parent);
-  }
+  DfsSplit(reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent->GetParentPageId())), parent);
 }
 
 /*****************************************************************************
@@ -175,7 +174,29 @@ void BPLUSTREE_TYPE::DfsSplit(InternalPage *parent, BPlusTreePage *child) {
  * necessary.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
+void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
+  if (IsEmpty()) {
+    return;
+  }
+  auto leaf_data = FindShouldLocalPage(root_page_id_, key);
+  std::pair<bool, KeyType> cur = leaf_data->DeleteKey(key, comparator_);
+  if (cur.first) {
+    DfsChangePos0(leaf_data->GetParentPageId(), key, cur.second);
+  }
+  // 需要删除当前的keys
+  // 如果当前的key不是第一个,并且删除之后的size没有小于最小值,直接进行删除
+  // 删除之后的大小如果是小于最小值的话,那么需要从next_page中偷一个如果next_page的大小大于min_size
+  // 还需要进行修改根节点,
+  // 分析如果的当前的key是第一个那么需要进行修改上面的节点,一直到上面的节点不再是第一个为止
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void BPLUSTREE_TYPE::DfsChangePos0(page_id_t father, const KeyType &oldkey, const KeyType &newkey) {
+  auto page_data = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(father));
+  if (page_data->ChangePos0Key(oldkey, newkey, comparator_)) {
+    DfsChangePos0(page_data->GetParentPageId(), oldkey, newkey);
+  }
+}
 
 /*****************************************************************************
  * INDEX ITERATOR

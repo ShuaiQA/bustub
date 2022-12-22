@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <sstream>
+#include <utility>
 
 #include "common/config.h"
 #include "common/exception.h"
@@ -99,6 +100,25 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::FindValueAddVector(const KeyType &key, std::vec
     }
   }
   return ans;
+}
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::DeleteKey(const KeyType &key, const KeyComparator &comp) -> std::pair<bool, KeyType> {
+  // we need pos == 0 and combine?
+  int i = 0;
+  bool ans = false;
+  while (comp(array_[i].first, key) != 0 && i < GetSize()) {
+    i++;
+  }
+  if (i == 0) {
+    ans = true;
+  }
+  if (i != GetSize()) {
+    while (i < GetSize()) {
+      array_[i] = array_[i + 1];
+    }
+    IncreaseSize(-1);
+  }
+  return std::pair<bool, KeyType>{ans, array_[0].first};
 }
 
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;

@@ -487,3 +487,4 @@ size大于最大值、叶子节点需要进行拆分(根的size忘了修改)
 ![image-20221219210057287](/home/shuai/bustub/mind/image-20221219210057287.png)
 
 ![image-20221219210620822](/home/shuai/bustub/mind/image-20221219210620822.png)
+

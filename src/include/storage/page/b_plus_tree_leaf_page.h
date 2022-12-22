@@ -59,6 +59,9 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   // 根据传入的Key找到相应的值
   auto FindValueAddVector(const KeyType &key, std::vector<ValueType> *result, const KeyComparator &comp) -> bool;
 
+  // 根据传入的key对当前的叶子节点进行删除,如果删除的是第一个pair那么需要return true,and return second KeyType
+  auto DeleteKey(const KeyType &key, const KeyComparator &comp) -> std::pair<bool, KeyType>;
+
  private:
   // 保存下一个页面的索引
   page_id_t next_page_id_;

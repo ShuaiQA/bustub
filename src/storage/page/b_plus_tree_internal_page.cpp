@@ -92,6 +92,16 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Split(B_PLUS_TREE_INTERNAL_PAGE_TYPE *other
   return other->array_[0].first;
 }
 
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::ChangePos0Key(const KeyType &oldkey, const KeyType &newkey,
+                                                   const KeyComparator &comp) -> bool {
+  if (comp(array_[0].first, oldkey) == 0) {
+    SetKeyAt(0, newkey);
+    return true;
+  }
+  return false;
+}
+
 // valuetype for internalNode should be page id_t
 template class BPlusTreeInternalPage<GenericKey<4>, page_id_t, GenericComparator<4>>;
 template class BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8>>;
