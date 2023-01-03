@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 
 #include "buffer/buffer_pool_manager_instance.h"
@@ -166,7 +167,6 @@ TEST(BPlusTreeTests, InsertTest3) {
     int64_t value = key & 0xFFFFFFFF;
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
-  LOG_DEBUG("pass");
 
   int64_t start_key = 1;
   int64_t current_key = start_key;
@@ -178,7 +178,6 @@ TEST(BPlusTreeTests, InsertTest3) {
     current_key = current_key + 1;
   }
 
-  LOG_DEBUG("pass");
   EXPECT_EQ(current_key, keys.size() + 1);
 
   start_key = 3;
@@ -191,7 +190,6 @@ TEST(BPlusTreeTests, InsertTest3) {
     current_key = current_key + 1;
   }
 
-  LOG_DEBUG("pass");
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete transaction;
   delete disk_manager;

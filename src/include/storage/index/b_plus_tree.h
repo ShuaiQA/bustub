@@ -19,6 +19,7 @@
 #include "storage/index/index_iterator.h"
 #include "storage/page/b_plus_tree_internal_page.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
+#include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
 
@@ -94,10 +95,21 @@ class BPlusTree {
   void DfsSplit(InternalPage *parent, BPlusTreePage *child);
 
   void DfsChangePos0(page_id_t father, const KeyType &oldkey, const KeyType &newkey);
-
   // 根据传入的key找到应该存储的 page_id_t 如果当前的page_id_t里面没有进行插入
-  auto FindShouldLocalPage(page_id_t root, const KeyType &key) -> LeafPage *;
+  auto FindShouldLocalPage(page_id_t root, const KeyType &key, Transaction *transaction = nullptr) -> LeafPage *;
+  // 根据传入的叶子节点,返回当前叶子节点的左兄弟节点,没有返回nullptr
+  auto FindLeafLeafData(LeafPage *cur) -> LeafPage *;
 
+  // 根据传入的内部节点返回内部节点的左右兄弟节点
+  auto FindInternalLeafData(InternalPage *cur) -> InternalPage *;
+  auto FindInternalRightData(InternalPage *cur) -> InternalPage *;
+
+  // 根据传入的当前节点判断当前的内部节点是否需要进行借或者合并,递归的向上进行遍历
+  void DfsShouldCombine(InternalPage *cur);
+
+  // 获取第一个叶子和获取最后一个叶子节点
+  auto GetFirstLeafData(page_id_t root) -> LeafPage *;
+  auto GetLastLeafData(page_id_t root) -> LeafPage *;
   // 当前的变量保存这根节点的页面、缓冲池的指针、一个比较器、叶节点的最大容量、内部节点的最大容量
   std::string index_name_;
   page_id_t root_page_id_;

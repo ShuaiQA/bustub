@@ -61,6 +61,21 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const -> KeyType {
 }
 
 INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetKeyAndValue(int index) const -> const MappingType & { return array_[index]; }
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::FindIndexKey(const KeyType &key, const KeyComparator &comp) -> int {
+  int ans = -1;
+  for (int i = 0; i < GetSize(); i++) {
+    if (comp(array_[i].first, key) == 0) {
+      ans = i;
+      break;
+    }
+  }
+  return ans;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &val, const KeyComparator &comp) -> bool {
   // 如果当前key存在返回0,当前的容量满了返回-1,插入成功返回1
   // 因为我们不能够判断叶子节点的pair满的情况下是单数
@@ -82,10 +97,10 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &val
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::Split(B_PLUS_TREE_LEAF_PAGE_TYPE *other, const KeyComparator &comp) -> KeyType {
-  for (int size = GetMinSize() + 1; size <= GetMaxSize(); size++) {
+  for (int size = GetMinSize(); size <= GetMaxSize(); size++) {
     other->Insert(array_[size].first, array_[size].second, comp);
   }
-  IncreaseSize(GetMinSize() - GetMaxSize());
+  IncreaseSize(GetMinSize() - GetMaxSize() - 1);
   next_page_id_ = other->GetPageId();
   return other->array_[0].first;
 }
@@ -104,6 +119,7 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::FindValueAddVector(const KeyType &key, std::vec
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::DeleteKey(const KeyType &key, const KeyComparator &comp) -> std::pair<bool, KeyType> {
   // we need pos == 0 and combine?
+  // 删除key,如果删除的是数组的下标0,返回true,并且返回删除之后的第0个下标
   int i = 0;
   bool ans = false;
   while (comp(array_[i].first, key) != 0 && i < GetSize()) {
@@ -115,6 +131,7 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::DeleteKey(const KeyType &key, const KeyComparat
   if (i != GetSize()) {
     while (i < GetSize()) {
       array_[i] = array_[i + 1];
+      i++;
     }
     IncreaseSize(-1);
   }

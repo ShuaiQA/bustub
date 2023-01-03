@@ -44,6 +44,7 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   auto KeyAt(int index) const -> KeyType;
   void SetKeyAt(int index, const KeyType &key);
   auto ValueAt(int index) const -> ValueType;
+
   auto GetNextPageId(const KeyType &key, const KeyComparator &comp) -> page_id_t;
   void SetIndexKeyValue(int index, const KeyType &key, const ValueType &val);
   // 将一个节点的内部array_一般的元素,移动到另一个next中
@@ -52,7 +53,12 @@ class BPlusTreeInternalPage : public BPlusTreePage {
 
   auto Split(B_PLUS_TREE_INTERNAL_PAGE_TYPE *other, const KeyComparator &comp) -> KeyType;
 
+  // 根据传入的val进行删除array_,如果有则将删除的节点删除并返回返回
+  auto DeleteArrayVal(const ValueType &val) -> MappingType;
+  // 查找父节点的oldkey将其修改成newkey,返回true设置成功
   auto ChangePos0Key(const KeyType &oldkey, const KeyType &newkey, const KeyComparator &comp) -> bool;
+  // 根据传入的val的值返回val的对应的下标
+  auto AccordValFindValPos(const ValueType &val) -> int;
 
  private:
   // Flexible array member for page data.

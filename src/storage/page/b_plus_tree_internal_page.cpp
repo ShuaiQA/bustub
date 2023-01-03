@@ -48,6 +48,25 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyAt(int index) const -> KeyType {
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) { array_[index].first = key; }
 
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::DeleteArrayVal(const ValueType &val) -> MappingType {
+  // 根据传入的val的值进行查找是否存在当前相关的val进行删除操作
+  int i = 0;
+  MappingType ans;
+  while (array_[i].second != val) {
+    i++;
+  }
+  if (i != GetSize()) {
+    ans = array_[i];
+  }
+  while (i < GetSize()) {
+    array_[i] = array_[i + 1];
+    i++;
+  }
+  IncreaseSize(-1);
+  return ans;
+}
+
 /*
  * Helper method to get the value associated with input "index"(a.k.a array
  * offset)
@@ -85,21 +104,38 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Insert(const KeyType &key, const ValueType 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Split(B_PLUS_TREE_INTERNAL_PAGE_TYPE *other, const KeyComparator &comp)
     -> KeyType {
-  for (int size = GetMinSize() + 1; size <= GetMaxSize(); size++) {
+  // 插入最初的第一个{}
+  other->Insert(KeyType{}, array_[GetMinSize() + 1].second, comp);
+  for (int size = GetMinSize() + 2; size <= GetMaxSize(); size++) {
     other->Insert(array_[size].first, array_[size].second, comp);
   }
   IncreaseSize(GetMinSize() - GetMaxSize());
-  return other->array_[0].first;
+  return array_[GetMinSize() + 1].first;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::ChangePos0Key(const KeyType &oldkey, const KeyType &newkey,
                                                    const KeyComparator &comp) -> bool {
-  if (comp(array_[0].first, oldkey) == 0) {
-    SetKeyAt(0, newkey);
-    return true;
+  bool ans = false;
+  for (int i = 0; i < GetSize(); i++) {
+    if (comp(array_[i].first, oldkey) == 0) {
+      SetKeyAt(i, newkey);
+      ans = true;
+    }
   }
-  return false;
+  return ans;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::AccordValFindValPos(const ValueType &val) -> int {
+  int ans = -1;
+  for (int i = 1; i < GetSize(); i++) {
+    if (array_[i].second == val) {
+      ans = i;
+      break;
+    }
+  }
+  return ans;
 }
 
 // valuetype for internalNode should be page id_t
