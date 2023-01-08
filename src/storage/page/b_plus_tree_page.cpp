@@ -21,7 +21,7 @@ namespace bustub {
  */
 auto BPlusTreePage::IsLeafPage() const -> bool { return page_type_ == IndexPageType::LEAF_PAGE; }
 auto BPlusTreePage::IsRootPage() const -> bool { return parent_page_id_ == INVALID_PAGE_ID; }
-auto BPlusTreePage::IsFull() const -> bool { return size_ - 1 == max_size_; }
+auto BPlusTreePage::IsFull() const -> bool { return size_ == max_size_; }
 void BPlusTreePage::SetPageType(IndexPageType page_type) { page_type_ = page_type; }
 
 /*

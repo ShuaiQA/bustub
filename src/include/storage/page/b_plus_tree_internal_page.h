@@ -12,6 +12,7 @@
 
 #include <queue>
 
+#include "buffer/buffer_pool_manager.h"
 #include "common/config.h"
 #include "storage/page/b_plus_tree_page.h"
 
@@ -37,6 +38,8 @@ namespace bustub {
  */
 INDEX_TEMPLATE_ARGUMENTS
 class BPlusTreeInternalPage : public BPlusTreePage {
+  using InternalPage = BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;
+
  public:
   // must call initialize method after "create" a new node
   void Init(page_id_t page_id, page_id_t parent_id = INVALID_PAGE_ID, int max_size = INTERNAL_PAGE_SIZE);
@@ -51,7 +54,7 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   // 一般是对于满的节点的操作
   void Insert(const KeyType &key, const ValueType &val, const KeyComparator &comp);
 
-  auto Split(B_PLUS_TREE_INTERNAL_PAGE_TYPE *other, const KeyComparator &comp) -> KeyType;
+  auto Split(B_PLUS_TREE_INTERNAL_PAGE_TYPE *other, const KeyComparator &comp, BufferPoolManager *buffer) -> KeyType;
 
   // 根据传入的val进行删除array_,如果有则将删除的节点删除并返回返回
   auto DeleteArrayVal(const ValueType &val) -> MappingType;
@@ -59,6 +62,9 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   auto ChangePos0Key(const KeyType &oldkey, const KeyType &newkey, const KeyComparator &comp) -> bool;
   // 根据传入的val的值返回val的对应的下标
   auto AccordValFindValPos(const ValueType &val) -> int;
+
+  void AddKeyTo1ValTo0(const KeyType &key, const ValueType &val);
+  auto DeleteKey1Val0() -> MappingType;
 
  private:
   // Flexible array member for page data.

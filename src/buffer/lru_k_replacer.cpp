@@ -25,6 +25,12 @@ namespace bustub {
 
 LRUKReplacer::LRUKReplacer(size_t num_frames, size_t k) : replacer_size_(num_frames), k_(k) { num_ = 0; }
 
+LRUKReplacer::~LRUKReplacer() {
+  cache_.clear();
+  cach_.clear();
+  hist_.clear();
+}
+
 auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   std::scoped_lock<std::mutex> lock(latch_);
   auto lam = [](Node node) { return !node.replace_; };
