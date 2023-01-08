@@ -93,7 +93,7 @@ class BPlusTree {
   auto CreateNewLeafPage(page_id_t *page_id, page_id_t parent = INVALID_PAGE_ID, page_id_t next_page = INVALID_PAGE_ID)
       -> bool;
   auto CreateNewInternalPage(page_id_t *page_id, page_id_t parent = INVALID_PAGE_ID) -> bool;
-  void DfsSplit(InternalPage *parent, BPlusTreePage *child);
+  void DfsSplit(page_id_t cur);
 
   void DfsChangePos0(page_id_t father, const KeyType &oldkey, const KeyType &newkey);
   // 根据传入的key找到应该存储的 page_id_t 如果当前的page_id_t里面没有进行插入
@@ -106,7 +106,7 @@ class BPlusTree {
   auto FindInternalRightData(InternalPage *cur) -> InternalPage *;
 
   // 根据传入的当前节点判断当前的内部节点是否需要进行借或者合并,递归的向上进行遍历
-  void DfsShouldCombine(InternalPage *cur);
+  void DfsShouldCombine(page_id_t c);
 
   // 获取第一个叶子和获取最后一个叶子节点
   auto GetFirstLeafData(page_id_t root) -> LeafPage *;

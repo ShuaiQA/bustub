@@ -15,6 +15,7 @@
 
 #include "common/config.h"
 #include "common/exception.h"
+#include "common/logger.h"
 #include "common/macros.h"
 
 namespace bustub {
@@ -31,6 +32,7 @@ BufferPoolManagerInstance::BufferPoolManagerInstance(size_t pool_size, DiskManag
   for (size_t i = 0; i < pool_size_; ++i) {
     free_list_.emplace_back(static_cast<int>(i));
   }
+  LOG_INFO("pool_size is [%d]", (int)pool_size_);
 }
 
 BufferPoolManagerInstance::~BufferPoolManagerInstance() {
@@ -73,6 +75,8 @@ auto BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) -> Page * {
   // 如果没有找到,那么需要进行更新操作,找到一个新的帧进行替换
   cur = GetFrame();
   if (cur == -1) {  // 没有找到新的帧
+    LOG_INFO("内存不够等待缓冲区释放");
+    Debug();
     return nullptr;
   }
   // 找到新的帧进行初始话的过程
@@ -100,6 +104,7 @@ auto BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) -> 
   if (pages_[frame].pin_count_ == 0) {
     replacer_->SetEvictable(frame, true);
   }
+  // Debug();
   return true;
 }
 

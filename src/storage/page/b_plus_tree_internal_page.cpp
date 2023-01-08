@@ -80,8 +80,8 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const -> ValueType { ret
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::GetNextPageId(const KeyType &key, const KeyComparator &comp) -> page_id_t {
   // 根据当前的key进行在内部节点中进行查找,获取到ValueType也就是下一个页面的值
+  // LOG_INFO("cur page is [%d] max size is [%d] cur size is [%d]", GetPageId(), GetMaxSize(), GetSize());
   assert(GetSize() <= GetMaxSize());
-  std::cout << std::endl;
   int i = GetSize() - 1;
   while (i >= 1 && comp(array_[i].first, key) > 0) {
     i--;
@@ -138,8 +138,14 @@ INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Split(B_PLUS_TREE_INTERNAL_PAGE_TYPE *other, const KeyComparator &comp,
                                            BufferPoolManager *buffer) -> KeyType {
   // 插入最初的第一个{}
+  LOG_INFO("set father is [%d] this size is [%d] next page id is [%d]", other->GetPageId(), GetSize(),
+           array_[GetMinSize() + 1].second);
   other->Insert(KeyType{}, array_[GetMinSize() + 1].second, comp);
   auto in = reinterpret_cast<InternalPage *>(buffer->FetchPage(array_[GetMinSize() + 1].second));
+  if (in == nullptr) {
+    LOG_INFO("cur is nullptr 不能设置父节点");
+    return KeyType{};
+  }
   in->SetParentPageId(other->GetPageId());
   buffer->UnpinPage(array_[GetMinSize() + 1].second, true);
   for (int size = GetMinSize() + 2; size <= GetMaxSize(); size++) {

@@ -14,6 +14,7 @@
  */
 #pragma once
 #include "buffer/buffer_pool_manager.h"
+#include "common/config.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
 
 namespace bustub {
@@ -26,8 +27,8 @@ class IndexIterator {
 
  public:
   // you may define your own constructor based on your member variables
-  IndexIterator(LeafPage *leaf, int index, BufferPoolManager *buffer_pool_manager);
-  ~IndexIterator();  // NOLINT
+  IndexIterator(page_id_t page_, int index, BufferPoolManager *buffer_pool_manager);
+  ~IndexIterator() = default;
 
   auto IsEnd() -> bool;
 
@@ -35,14 +36,12 @@ class IndexIterator {
 
   auto operator++() -> IndexIterator &;
 
-  auto operator==(const IndexIterator &itr) const -> bool {
-    return itr.leaf_->GetPageId() == leaf_->GetPageId() && itr.index_ == index_;
-  }
+  auto operator==(const IndexIterator &itr) const -> bool { return itr.page_ == page_ && itr.index_ == index_; }
 
   auto operator!=(const IndexIterator &itr) const -> bool { return !(itr == *this); }
 
  private:
-  LeafPage *leaf_;
+  page_id_t page_;
   int index_;
   BufferPoolManager *buffer_pool_manager_;
 };

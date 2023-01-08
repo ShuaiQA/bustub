@@ -12,12 +12,14 @@
 
 #pragma once
 
+#include <cstddef>
 #include <list>
 #include <mutex>  // NOLINT
 #include <unordered_map>
 #include "buffer/buffer_pool_manager.h"
 #include "buffer/lru_k_replacer.h"
 #include "common/config.h"
+#include "common/logger.h"
 #include "container/hash/extendible_hash_table.h"
 #include "recovery/log_manager.h"
 #include "storage/disk/disk_manager.h"
@@ -50,6 +52,14 @@ class BufferPoolManagerInstance : public BufferPoolManager {
 
   /** @brief Return the pointer to all the pages in the buffer pool. */
   auto GetPages() -> Page * { return pages_; }
+
+  void Debug() {
+    LOG_INFO("当前的缓冲区里面是：");
+    for (size_t i = 0; i < pool_size_; i++) {
+      LOG_INFO("page id is [%d], is_dirty is [%d], pin_count is [%d]", pages_[i].GetPageId(), pages_[i].is_dirty_,
+               pages_[i].pin_count_);
+    }
+  }
 
  protected:
   /**
