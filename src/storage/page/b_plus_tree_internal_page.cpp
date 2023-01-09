@@ -138,14 +138,10 @@ INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Split(B_PLUS_TREE_INTERNAL_PAGE_TYPE *other, const KeyComparator &comp,
                                            BufferPoolManager *buffer) -> KeyType {
   // 插入最初的第一个{}
-  LOG_INFO("set father is [%d] this size is [%d] next page id is [%d]", other->GetPageId(), GetSize(),
-           array_[GetMinSize() + 1].second);
+  /* LOG_INFO("set father is [%d] this size is [%d] next page id is [%d]", other->GetPageId(), GetSize(),
+           array_[GetMinSize() + 1].second); */
   other->Insert(KeyType{}, array_[GetMinSize() + 1].second, comp);
   auto in = reinterpret_cast<InternalPage *>(buffer->FetchPage(array_[GetMinSize() + 1].second));
-  if (in == nullptr) {
-    LOG_INFO("cur is nullptr 不能设置父节点");
-    return KeyType{};
-  }
   in->SetParentPageId(other->GetPageId());
   buffer->UnpinPage(array_[GetMinSize() + 1].second, true);
   for (int size = GetMinSize() + 2; size <= GetMaxSize(); size++) {

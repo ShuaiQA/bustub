@@ -93,24 +93,31 @@ class BPlusTree {
   auto CreateNewLeafPage(page_id_t *page_id, page_id_t parent = INVALID_PAGE_ID, page_id_t next_page = INVALID_PAGE_ID)
       -> bool;
   auto CreateNewInternalPage(page_id_t *page_id, page_id_t parent = INVALID_PAGE_ID) -> bool;
-  void DfsSplit(page_id_t cur);
+  void DfsSplit(page_id_t cur, Transaction *transaction);
 
-  void DfsChangePos0(page_id_t father, const KeyType &oldkey, const KeyType &newkey);
+  // 该上锁比较粗颗粒
+  void DfsChangePos0(page_id_t father, const KeyType &oldkey, const KeyType &newkey, Transaction *transaction);
   // 根据传入的key找到应该存储的 page_id_t 如果当前的page_id_t里面没有进行插入
-  auto FindShouldLocalPage(const KeyType &key, Transaction *transaction = nullptr) -> LeafPage *;
+  auto FindShouldLocalPage(const KeyType &key, Transaction *transaction = nullptr) -> page_id_t;
   // 根据传入的叶子节点,返回当前叶子节点的左兄弟节点,没有返回nullptr
-  auto FindLeafLeafData(LeafPage *cur) -> LeafPage *;
+  auto FindLeafLeafData(LeafPage *cur) -> page_id_t;
 
   // 根据传入的内部节点返回内部节点的左右兄弟节点
   auto FindInternalLeafData(InternalPage *cur) -> InternalPage *;
   auto FindInternalRightData(InternalPage *cur) -> InternalPage *;
 
   // 根据传入的当前节点判断当前的内部节点是否需要进行借或者合并,递归的向上进行遍历
-  void DfsShouldCombine(page_id_t c);
+  void DfsShouldCombine(page_id_t c, Transaction *transaction);
 
   // 获取第一个叶子和获取最后一个叶子节点
   auto GetFirstLeafData(page_id_t root) -> LeafPage *;
   auto GetLastLeafData(page_id_t root) -> LeafPage *;
+
+  // 删除queue中的所有page的锁
+  void DeleteUnlock(int type, Transaction *transaction);
+  // 上锁操作
+  void AddSomeLock(int type, Transaction *transaction, BPlusTreePage *cur);
+
   // 当前的变量保存这根节点的页面、缓冲池的指针、一个比较器、叶节点的最大容量、内部节点的最大容量
   std::string index_name_;
   page_id_t root_page_id_;

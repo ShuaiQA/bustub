@@ -32,7 +32,7 @@ BufferPoolManagerInstance::BufferPoolManagerInstance(size_t pool_size, DiskManag
   for (size_t i = 0; i < pool_size_; ++i) {
     free_list_.emplace_back(static_cast<int>(i));
   }
-  LOG_INFO("pool_size is [%d]", (int)pool_size_);
+  // LOG_INFO("pool_size is [%d]", (int)pool_size_);
 }
 
 BufferPoolManagerInstance::~BufferPoolManagerInstance() {
