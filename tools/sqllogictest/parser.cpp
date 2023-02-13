@@ -40,11 +40,14 @@ auto ParseInner(const std::string &filename, const std::string &script) -> std::
   while (line_iter != lines.cend()) {
     const auto &line = *line_iter;
 
+		// 如果当前的行是空的,或者当前行是以注释为开头的跳过
     if (line.empty() || StringUtil::StartsWith(line, "#")) {
       line_iter++;
       continue;
     }
+		// 获取filename = <main>和当前的是文件的第几行
     auto loc = Location{filename, static_cast<size_t>(line_iter - lines.cbegin()) + 1, nullptr};
+		// tokens 返回的是当前行以空格隔开的字符串向量
     auto tokens = Tokenize(line);
     if (tokens.empty()) {
       line_iter++;
@@ -89,6 +92,7 @@ auto ParseInner(const std::string &filename, const std::string &script) -> std::
       if (line_iter != lines.cend()) {
         line_iter++;
       }
+			// 进入下一条sql语句的那一行
       std::string sql;
       while (line_iter != lines.cend()) {
         const auto &line = *line_iter;
@@ -99,7 +103,9 @@ auto ParseInner(const std::string &filename, const std::string &script) -> std::
         sql += "\n";
         line_iter++;
       }
+			// 删除对应的sql语句的' ', \f, \n, \r, \t, \v
       StringUtil::RTrim(&sql);
+			// 将当前的位置,错误,sql语句字符串,可选项添加到records中
       records.emplace_back(std::make_unique<StatementRecord>(loc, error, std::move(sql), std::move(extra_options)));
       if (line_iter == lines.cend()) {
         break;

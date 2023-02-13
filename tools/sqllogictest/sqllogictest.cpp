@@ -167,6 +167,7 @@ auto main(int argc, char **argv) -> int {  // NOLINT
   std::string script((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
   t.close();
 
+	// result 是一个Record的指针向量,其中Record有多个子类,例如QueryRecord,StatementRecord
   auto result = bustub::SQLLogicTestParser::Parse(script);
 
   auto bustub = std::make_unique<bustub::BustubInstance>("test.db");
