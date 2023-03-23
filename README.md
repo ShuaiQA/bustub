@@ -99,6 +99,8 @@ class Trie {
 
 # p1
 
+![image-20230323223826639](assets/image-20230323223826639.png)
+
 ## ExtendibleHashTable
 
 ### 数据结构
@@ -393,6 +395,10 @@ class BufferPoolManagerInstance : public BufferPoolManager {
 
 
 # p2
+
+![image-20230323224039736](assets/image-20230323224039736.png)
+
+![image-20230323224057757](assets/image-20230323224057757.png)
 
 ## B+树介绍
 
